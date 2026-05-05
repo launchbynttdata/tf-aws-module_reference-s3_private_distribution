@@ -2,9 +2,42 @@ _answers_file: ".copier-answers.yml"
 _subdirectory: "template"
 
 # Files listed here will never be overwritten in downstream repositories if they exist.
+# Core module files are protected so that skeleton updates can add net-new files
+# (workflows, tooling configs, etc.) without clobbering module-specific content.
 _skip_if_exists:
   - NOTICE
   - LICENSE
+  # Module implementation — always module-specific
+  - main.tf
+  - variables.tf
+  - outputs.tf
+  - locals.tf
+  - versions.tf
+  # Go module definition — module path and deps are module-specific
+  - go.mod
+  - go.sum
+  # Make orchestration — customised per module
+  - Makefile
+  # Agent/LLM routing guidance
+  - AGENTS.md
+  - CLAUDE.md
+  # Tests — module-specific implementations
+  - tests/post_deploy_functional/main_test.go
+  - tests/post_deploy_functional_readonly/main_test.go
+  - tests/testimpl/test_impl.go
+  - tests/testimpl/types.go
+  - tests/terraform/scaffold.tftest.hcl
+  # Examples — fully module-specific
+  - examples/complete/main.tf
+  - examples/complete/variables.tf
+  - examples/complete/outputs.tf
+  - examples/complete/versions.tf
+  - examples/complete/README.md
+  - examples/simple/main.tf
+  - examples/simple/variables.tf
+  - examples/simple/outputs.tf
+  - examples/simple/versions.tf
+  - examples/simple/README.md
 
 # Excluded files are not copied out of the source folder.
 _exclude:

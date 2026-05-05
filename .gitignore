@@ -11,13 +11,13 @@ components/
 .terraform.lock.hcl
 
 # Don't include the .test-data directory created by Terratest's test-structure module
-**/.test-data/*
+.test-data
 
 # Local .terraform directories
-**/.terraform/*
+.terraform
 
 # Local .terragrunt directories
-**/.terragrunt/*
+.terragrunt
 
 # .tfstate files
 *.tfstate
@@ -26,6 +26,9 @@ components/
 # Crash log files
 crash.log
 crash.*.log
+
+# All log files
+*.log
 
 # Exclude all .tfvars files, which are likely to contain sensitive data, such as
 # password, private keys, and other secrets. These should not be part of version
