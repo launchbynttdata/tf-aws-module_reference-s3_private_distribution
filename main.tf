@@ -25,79 +25,24 @@ resource "random_string" "suffix" {
 # S3 Artifact Bucket
 # ---------------------------------------------------------------------------
 
-resource "aws_s3_bucket" "artifacts" {
-  bucket        = local.s3_bucket_name
-  force_destroy = true
+module "artifacts_bucket" {
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
 
+  bucket_name                        = local.s3_bucket_name
+  enable_versioning                  = var.enable_versioning
+  use_default_server_side_encryption = true
+  lifecycle_rule                     = local.lifecycle_rules_json
+  block_public_acls                  = true
+  ignore_public_acls                 = true
+  block_public_policy                = false
+  restrict_public_buckets            = false
+  # Logging wired below via aws_s3_bucket_logging — collection module logging var not used here
+  # because we need conditional target switching (auto-created vs external)
   tags = merge(local.tags, { Name = "${local.base_name}-artifacts" })
 }
 
-resource "aws_s3_bucket_versioning" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  versioning_configuration {
-    status = var.enable_versioning ? "Enabled" : "Suspended"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
-  count  = var.enable_lifecycle ? 1 : 0
-  bucket = aws_s3_bucket.artifacts.id
-
-  dynamic "rule" {
-    for_each = var.lifecycle_noncurrent_version_expiration_days > 0 ? [1] : []
-    content {
-      id     = "expire-noncurrent-versions"
-      status = "Enabled"
-      filter {
-        prefix = ""
-      }
-
-      noncurrent_version_expiration {
-        noncurrent_days = var.lifecycle_noncurrent_version_expiration_days
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.lifecycle_incomplete_multipart_upload_days > 0 ? [1] : []
-    content {
-      id     = "abort-incomplete-multipart"
-      status = "Enabled"
-      filter {
-        prefix = ""
-      }
-
-      abort_incomplete_multipart_upload {
-        days_after_initiation = var.lifecycle_incomplete_multipart_upload_days
-      }
-    }
-  }
-
-  depends_on = [aws_s3_bucket_versioning.artifacts]
-}
-
-resource "aws_s3_bucket_public_access_block" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  block_public_acls       = true
-  ignore_public_acls      = true
-  block_public_policy     = false
-  restrict_public_buckets = false
-}
-
 resource "aws_s3_bucket_policy" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
+  bucket = module.artifacts_bucket.id
 
   # NOTE: FG_R00100 waiver exists because Regula evaluates plan JSON, and
   # aws_s3_bucket_policy content is often unknown until apply. This policy still
@@ -107,94 +52,38 @@ resource "aws_s3_bucket_policy" "artifacts" {
     Statement = local.bucket_policy_statements
   })
 
-  depends_on = [aws_s3_bucket_public_access_block.artifacts]
+  depends_on = [module.artifacts_bucket]
 }
 
 # ---------------------------------------------------------------------------
 # S3 Logging Bucket (optional, auto-created if not provided)
 # ---------------------------------------------------------------------------
 
-resource "aws_s3_bucket" "logging" {
-  count         = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  bucket        = lower(replace("${local.base_name}-logs", "_", "-"))
-  force_destroy = true
-
-  tags = merge(local.tags, { Name = "${local.base_name}-logs" })
-}
-
-resource "aws_s3_bucket_public_access_block" "logging" {
+module "logging_bucket" {
   count  = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  bucket = aws_s3_bucket.logging[0].id
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
 
-  block_public_acls       = true
-  ignore_public_acls      = true
-  block_public_policy     = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "logging" {
-  count  = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  bucket = aws_s3_bucket.logging[0].id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "logging" {
-  count  = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  bucket = aws_s3_bucket.logging[0].id
-
+  bucket_name                        = local.logging_bucket_name_computed
+  use_default_server_side_encryption = true
+  block_public_acls                  = true
+  ignore_public_acls                 = true
+  block_public_policy                = true
+  restrict_public_buckets            = true
+  attach_policy                      = true
   # NOTE: FG_R00100 waiver covers plan-time policy visibility limits in Regula.
   # Runtime behavior still denies insecure transport for this bucket.
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "DenyInsecureTransport"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:*"
-        Resource = [
-          aws_s3_bucket.logging[0].arn,
-          "${aws_s3_bucket.logging[0].arn}/*"
-        ]
-        Condition = {
-          Bool = {
-            "aws:SecureTransport" = "false"
-          }
-        }
-      },
-      {
-        Sid    = "AllowS3LoggingService"
-        Effect = "Allow"
-        Principal = {
-          Service = "logging.s3.amazonaws.com"
-        }
-        Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.logging[0].arn}/*"
-        Condition = {
-          Bool = {
-            "aws:SecureTransport" = "true"
-          }
-        }
-      }
-    ]
-  })
-
-  depends_on = [aws_s3_bucket_public_access_block.logging]
+  policy = local.logging_bucket_policy_json
+  tags   = merge(local.tags, { Name = "${local.base_name}-logs" })
 }
 
 resource "aws_s3_bucket_logging" "artifacts" {
   count         = var.enable_logging ? 1 : 0
-  bucket        = aws_s3_bucket.artifacts.id
-  target_bucket = var.logging_target_bucket != null ? var.logging_target_bucket : aws_s3_bucket.logging[0].id
+  bucket        = module.artifacts_bucket.id
+  target_bucket = var.logging_target_bucket != null ? var.logging_target_bucket : module.logging_bucket[0].id
   target_prefix = var.logging_prefix
 
   depends_on = [
-    aws_s3_bucket_public_access_block.logging
+    module.logging_bucket
   ]
 }
 
@@ -221,90 +110,22 @@ module "s3_interface_vpce" {
 # S3 Replication Bucket (optional)
 # ---------------------------------------------------------------------------
 
-resource "aws_s3_bucket" "replication" {
-  count         = var.enable_replication ? 1 : 0
-  bucket        = lower(replace("${local.base_name}-replica-${var.replication_destination_region != null ? var.replication_destination_region : var.aws_region}", "_", "-"))
-  force_destroy = true
-
-  tags = merge(local.tags, { Name = "${local.base_name}-replica" })
-}
-
-resource "aws_s3_bucket_versioning" "replication" {
+module "replication_bucket" {
   count  = var.enable_replication ? 1 : 0
-  bucket = aws_s3_bucket.replication[0].id
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
 
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "replication" {
-  count  = var.enable_replication ? 1 : 0
-  bucket = aws_s3_bucket.replication[0].id
-
-  block_public_acls       = true
-  ignore_public_acls      = true
-  block_public_policy     = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "replication" {
-  count  = var.enable_replication ? 1 : 0
-  bucket = aws_s3_bucket.replication[0].id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "replication" {
-  count  = var.enable_replication ? 1 : 0
-  bucket = aws_s3_bucket.replication[0].id
-
+  bucket_name                        = local.replication_bucket_name_computed
+  enable_versioning                  = true
+  use_default_server_side_encryption = true
+  block_public_acls                  = true
+  ignore_public_acls                 = true
+  block_public_policy                = true
+  restrict_public_buckets            = true
+  attach_policy                      = true
   # NOTE: FG_R00100 waiver covers plan-time policy visibility limits in Regula.
   # Runtime behavior still denies insecure transport for this bucket.
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "DenyInsecureTransport"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:*"
-        Resource = [
-          aws_s3_bucket.replication[0].arn,
-          "${aws_s3_bucket.replication[0].arn}/*"
-        ]
-        Condition = {
-          Bool = {
-            "aws:SecureTransport" = "false"
-          }
-        }
-      },
-      {
-        Sid    = "AllowS3ReplicationService"
-        Effect = "Allow"
-        Principal = {
-          AWS = aws_iam_role.replication[0].arn
-        }
-        Action = [
-          "s3:ReplicateObject",
-          "s3:ReplicateDelete",
-          "s3:ReplicateTags"
-        ]
-        Resource = "${aws_s3_bucket.replication[0].arn}/*"
-        Condition = {
-          Bool = {
-            "aws:SecureTransport" = "true"
-          }
-        }
-      }
-    ]
-  })
-
-  depends_on = [aws_s3_bucket_public_access_block.replication]
+  policy = local.replication_bucket_policy_json
+  tags   = merge(local.tags, { Name = "${local.base_name}-replica" })
 }
 
 resource "aws_iam_role" "replication" {
@@ -340,7 +161,7 @@ resource "aws_iam_policy" "replication" {
           "s3:GetReplicationConfiguration",
           "s3:ListBucket"
         ]
-        Resource = aws_s3_bucket.artifacts.arn
+        Resource = module.artifacts_bucket.arn
       },
       {
         Effect = "Allow"
@@ -349,7 +170,7 @@ resource "aws_iam_policy" "replication" {
           "s3:GetObjectVersionAcl",
           "s3:GetObjectVersionTagging"
         ]
-        Resource = "${aws_s3_bucket.artifacts.arn}/*"
+        Resource = "${module.artifacts_bucket.arn}/*"
       },
       {
         Effect = "Allow"
@@ -358,7 +179,7 @@ resource "aws_iam_policy" "replication" {
           "s3:ReplicateDelete",
           "s3:ReplicateTags"
         ]
-        Resource = "${aws_s3_bucket.replication[0].arn}/*"
+        Resource = "${module.replication_bucket[0].arn}/*"
       }
     ]
   })
@@ -372,7 +193,7 @@ resource "aws_iam_role_policy_attachment" "replication" {
 
 resource "aws_s3_bucket_replication_configuration" "artifacts" {
   count  = var.enable_replication ? 1 : 0
-  bucket = aws_s3_bucket.artifacts.id
+  bucket = module.artifacts_bucket.id
   role   = aws_iam_role.replication[0].arn
 
   rule {
@@ -387,7 +208,7 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
     }
 
     destination {
-      bucket        = aws_s3_bucket.replication[0].arn
+      bucket        = module.replication_bucket[0].arn
       storage_class = "STANDARD"
 
       replication_time {
@@ -406,7 +227,7 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
     }
   }
 
-  depends_on = [aws_s3_bucket_versioning.artifacts]
+  depends_on = [module.artifacts_bucket]
 }
 
 locals {
@@ -468,7 +289,7 @@ locals {
   )
 
   vpce_allowed_bucket_arns = distinct(concat(
-    [aws_s3_bucket.artifacts.arn],
+    [module.artifacts_bucket.arn],
     var.additional_vpce_allowed_bucket_arns
   ))
 
@@ -505,8 +326,8 @@ locals {
         "s3:ListBucket"
       ]
       Resource = [
-        aws_s3_bucket.artifacts.arn,
-        "${aws_s3_bucket.artifacts.arn}/*"
+        module.artifacts_bucket.arn,
+        "${module.artifacts_bucket.arn}/*"
       ]
       Condition = {
         Bool = {
@@ -557,8 +378,8 @@ locals {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          module.artifacts_bucket.arn,
+          "${module.artifacts_bucket.arn}/*"
         ]
         Condition = {
           StringNotEquals = {
@@ -574,7 +395,7 @@ locals {
         Effect    = "Allow"
         Principal = "*"
         Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.artifacts.arn}/*"
+        Resource  = "${module.artifacts_bucket.arn}/*"
         Condition = {
           StringEquals = {
             "aws:SourceVpce" = module.s3_interface_vpce.id
@@ -596,8 +417,8 @@ locals {
           "s3:DeleteObject"
         ]
         Resource = [
-          aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          module.artifacts_bucket.arn,
+          "${module.artifacts_bucket.arn}/*"
         ]
         Condition = {
           ArnLike = {
@@ -619,8 +440,8 @@ locals {
         Principal = "*"
         Action    = "s3:*"
         Resource = [
-          aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          module.artifacts_bucket.arn,
+          "${module.artifacts_bucket.arn}/*"
         ]
         Condition = {
           Bool = {

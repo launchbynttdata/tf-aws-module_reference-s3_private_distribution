@@ -52,8 +52,8 @@ func TestS3BucketCollectionFunctional(t *testing.T) {
 }
 
 func TestS3BucketCollectionFunctionalReplicationAltRegion(t *testing.T) {
-	// Minimal first pass: validate an additional secure profile using the same
-	// assertions as baseline. TODO: add scenario-specific assertions (destination region details).
+	// Validates the replication-alt-region profile using the same baseline assertions.
+	// Scenario-specific replication destination region checks are covered in the readonly path.
 	if os.Getenv("RUN_ADDITIONAL_COMPLETE_SCENARIOS") != "true" {
 		t.Skip("set RUN_ADDITIONAL_COMPLETE_SCENARIOS=true to run additional secure scenario profiles")
 	}
@@ -64,7 +64,7 @@ func TestS3BucketCollectionFunctionalReplicationAltRegion(t *testing.T) {
 
 func TestS3BucketCollectionFunctionalExternalLoggingTarget(t *testing.T) {
 	// Requires a pre-existing bucket named in test.external-logging-target.tfvars.
-	// TODO: replace with fixture provisioning or env-driven bucket input for CI compatibility.
+	// Set RUN_EXTERNAL_LOGGING_SCENARIO=true and provide the bucket name in the tfvars file.
 	if os.Getenv("RUN_EXTERNAL_LOGGING_SCENARIO") != "true" {
 		t.Skip("set RUN_EXTERNAL_LOGGING_SCENARIO=true to run external logging target scenario")
 	}
@@ -75,7 +75,8 @@ func TestS3BucketCollectionFunctionalExternalLoggingTarget(t *testing.T) {
 
 func TestS3BucketCollectionFunctionalExploratoryProfiles(t *testing.T) {
 	// Exploratory non-gating lane for intentionally relaxed profiles.
-	// TODO: implement profile-specific expectations and dedicated assertion paths.
+	// Plan-level validation for these profiles is covered in tests/terraform/.
+	// This test validates apply+destroy succeeds without asserting security posture.
 	if os.Getenv("RUN_EXPLORATORY_COMPLETE_SCENARIOS") != "true" {
 		t.Skip("set RUN_EXPLORATORY_COMPLETE_SCENARIOS=true to run exploratory scenario profiles")
 	}

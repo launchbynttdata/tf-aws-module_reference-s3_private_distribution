@@ -6,16 +6,15 @@
 # groups, Windows client emulator, private SSM endpoints) to validate end-to-end private MSIX
 # distribution via S3 PrivateLink.
 #
-# Harness resource migration path:
-#   The bootstrap resources below use direct aws_* resource blocks because the
-#   corresponding launchbynttdata primitives are available but not yet wired
-#   in. Migration targets are noted per block.
+# Harness networking uses launchbynttdata primitive modules:
+#   vpc       → tf-aws-module_primitive-vpc v1.0.5
+#   subnets   → tf-aws-module_primitive-subnet v1.0.5
+#   SGs       → tf-aws-module_primitive-security_group v0.7.3 +
+#               tf-aws-module_primitive-vpc_security_group_ingress_rule v0.1.4 +
+#               tf-aws-module_primitive-vpc_security_group_egress_rule v0.2.2
 #
-#   aws_vpc                       → tf-aws-module_primitive-vpc
-#   aws_subnet (public/private)   → tf-aws-module_primitive-subnet
-#   aws_security_group (vpce/win) → tf-aws-module_primitive-security_group +
-#                                    tf-aws-module_primitive-vpc_security_group_ingress_rule +
-#                                    tf-aws-module_primitive-vpc_security_group_egress_rule
+# SSM VPC endpoints stay as inline aws_vpc_endpoint resources pending a
+# release tag on tf-aws-module_primitive-vpc_endpoint.
 # ---------------------------------------------------------------------------
 
 data "aws_availability_zones" "available" {
@@ -52,21 +51,25 @@ resource "random_string" "disallowed_bucket_suffix" {
   special = false
 }
 
+resource "random_id" "windows_resources_suffix" {
+  byte_length = 2
+}
+
 # ---------------------------------------------------------------------------
 # VPC
-# Migration target: tf-aws-module_primitive-vpc
 # ---------------------------------------------------------------------------
 
-resource "aws_vpc" "main" {
+module "vpc" {
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc?ref=1.0.5"
+
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
-
-  tags = { Name = "${var.name_prefix}-complete-vpc" }
+  tags                 = { Name = "${var.name_prefix}-complete-vpc" }
 }
 
 resource "aws_default_security_group" "default" {
-  vpc_id  = aws_vpc.main.id
+  vpc_id  = module.vpc.vpc_id
   ingress = []
   egress  = []
 
@@ -75,32 +78,30 @@ resource "aws_default_security_group" "default" {
 
 # ---------------------------------------------------------------------------
 # Subnets (private app + client)
-# Migration target: tf-aws-module_primitive-subnet
 # ---------------------------------------------------------------------------
 
-resource "aws_subnet" "app_private" {
+module "app_private_subnets" {
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet?ref=1.0.5"
   for_each = {
-    for idx, cidr in var.app_private_subnet_cidrs : idx => {
-      cidr = cidr
-      az   = local.azs[idx]
-    }
+    for idx, cidr in var.app_private_subnet_cidrs :
+    tostring(idx) => { cidr = cidr, az = local.azs[idx] }
   }
 
-  vpc_id                  = aws_vpc.main.id
+  vpc_id                  = module.vpc.vpc_id
   cidr_block              = each.value.cidr
   availability_zone       = each.value.az
   map_public_ip_on_launch = false
-
-  tags = { Name = "${var.name_prefix}-complete-app-private-${each.key}" }
+  tags                    = { Name = "${var.name_prefix}-complete-app-private-${each.key}" }
 }
 
-resource "aws_subnet" "client" {
-  vpc_id                  = aws_vpc.main.id
+module "client_subnet" {
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet?ref=1.0.5"
+
+  vpc_id                  = module.vpc.vpc_id
   cidr_block              = var.client_subnet_cidr
   availability_zone       = local.azs[0]
   map_public_ip_on_launch = false
-
-  tags = { Name = "${var.name_prefix}-complete-client-subnet" }
+  tags                    = { Name = "${var.name_prefix}-complete-client-subnet" }
 }
 
 # ---------------------------------------------------------------------------
@@ -111,98 +112,70 @@ resource "aws_subnet" "client" {
 
 # ---------------------------------------------------------------------------
 # Security Groups
-# Migration target: tf-aws-module_primitive-security_group +
-#                   tf-aws-module_primitive-vpc_security_group_ingress_rule +
-#                   tf-aws-module_primitive-vpc_security_group_egress_rule
 # ---------------------------------------------------------------------------
 
-resource "aws_security_group" "vpce" {
+module "vpce_sg" {
+  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
   name        = "${var.name_prefix}-complete-vpce-sg"
   description = "S3 interface endpoint - allows HTTPS inbound from private subnets and client subnet"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTPS from client subnet"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.client_subnet_cidr]
-  }
-
-  ingress {
-    description = "HTTPS from app-private subnets"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = var.app_private_subnet_cidrs
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.name_prefix}-complete-vpce-sg" }
+  vpc_id      = module.vpc.vpc_id
+  tags        = { Name = "${var.name_prefix}-complete-vpce-sg" }
 }
 
-resource "aws_security_group" "windows_client" {
+module "vpce_sg_ingress" {
+  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  for_each = toset(concat([var.client_subnet_cidr], var.app_private_subnet_cidrs))
+
+  security_group_id = module.vpce_sg.id
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = each.value
+  description       = "HTTPS from private subnets and client subnet"
+}
+
+
+module "windows_client_sg" {
+  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
   name        = "${var.name_prefix}-complete-windows-sg"
   description = "Windows emulator - HTTPS egress for package downloads; optional RDP ingress"
-  vpc_id      = aws_vpc.main.id
-
-  dynamic "ingress" {
-    for_each = var.admin_ingress_cidrs
-    content {
-      description = "Optional RDP admin access"
-      from_port   = 3389
-      to_port     = 3389
-      protocol    = "tcp"
-      cidr_blocks = [ingress.value]
-    }
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.name_prefix}-complete-windows-sg" }
+  vpc_id      = module.vpc.vpc_id
+  tags        = { Name = "${var.name_prefix}-complete-windows-sg" }
 }
 
-resource "aws_security_group" "ssm_endpoints" {
+module "windows_client_sg_rdp_ingress" {
+  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  for_each = toset(var.admin_ingress_cidrs)
+
+  security_group_id = module.windows_client_sg.id
+  ip_protocol       = "tcp"
+  from_port         = 3389
+  to_port           = 3389
+  cidr_ipv4         = each.value
+  description       = "Optional RDP admin access"
+}
+
+
+module "ssm_endpoints_sg" {
+  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
   name        = "${var.name_prefix}-complete-ssm-vpce-sg"
   description = "SSM interface endpoints - HTTPS from client and app-private subnets"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTPS from client subnet"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.client_subnet_cidr]
-  }
-
-  ingress {
-    description = "HTTPS from app-private subnets"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = var.app_private_subnet_cidrs
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.name_prefix}-complete-ssm-vpce-sg" }
+  vpc_id      = module.vpc.vpc_id
+  tags        = { Name = "${var.name_prefix}-complete-ssm-vpce-sg" }
 }
+
+module "ssm_endpoints_sg_ingress" {
+  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  for_each = toset(concat([var.client_subnet_cidr], var.app_private_subnet_cidrs))
+
+  security_group_id = module.ssm_endpoints_sg.id
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = each.value
+  description       = "HTTPS from private subnets and client subnet"
+}
+
 
 # ---------------------------------------------------------------------------
 # SSM Private Endpoints (Option A)
@@ -210,34 +183,34 @@ resource "aws_security_group" "ssm_endpoints" {
 # ---------------------------------------------------------------------------
 
 resource "aws_vpc_endpoint" "ssm" {
-  vpc_id              = aws_vpc.main.id
+  vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.ssm"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
-  subnet_ids          = [for s in aws_subnet.app_private : s.id]
-  security_group_ids  = [aws_security_group.ssm_endpoints.id]
+  subnet_ids          = [for s in module.app_private_subnets : s.subnet_id]
+  security_group_ids  = [module.ssm_endpoints_sg.id]
 
   tags = { Name = "${var.name_prefix}-complete-ssm-vpce" }
 }
 
 resource "aws_vpc_endpoint" "ssmmessages" {
-  vpc_id              = aws_vpc.main.id
+  vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
-  subnet_ids          = [for s in aws_subnet.app_private : s.id]
-  security_group_ids  = [aws_security_group.ssm_endpoints.id]
+  subnet_ids          = [for s in module.app_private_subnets : s.subnet_id]
+  security_group_ids  = [module.ssm_endpoints_sg.id]
 
   tags = { Name = "${var.name_prefix}-complete-ssmmessages-vpce" }
 }
 
 resource "aws_vpc_endpoint" "ec2messages" {
-  vpc_id              = aws_vpc.main.id
+  vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
-  subnet_ids          = [for s in aws_subnet.app_private : s.id]
-  security_group_ids  = [aws_security_group.ssm_endpoints.id]
+  subnet_ids          = [for s in module.app_private_subnets : s.subnet_id]
+  security_group_ids  = [module.ssm_endpoints_sg.id]
 
   tags = { Name = "${var.name_prefix}-complete-ec2messages-vpce" }
 }
@@ -262,7 +235,7 @@ data "aws_iam_policy_document" "ec2_assume" {
 }
 
 resource "aws_iam_role" "windows_ssm" {
-  name               = "${var.name_prefix}-complete-windows-ssm-role"
+  name               = "${var.name_prefix}-complete-windows-ssm-role-${random_id.windows_resources_suffix.hex}"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
 
   tags = { Name = "${var.name_prefix}-complete-windows-ssm-role" }
@@ -274,15 +247,15 @@ resource "aws_iam_role_policy_attachment" "windows_ssm_managed" {
 }
 
 resource "aws_iam_instance_profile" "windows_ssm" {
-  name = "${var.name_prefix}-complete-windows-ssm-profile"
+  name = "${var.name_prefix}-complete-windows-ssm-profile-${random_id.windows_resources_suffix.hex}"
   role = aws_iam_role.windows_ssm.name
 }
 
 resource "aws_instance" "windows_client" {
   ami                         = data.aws_ssm_parameter.windows_ami.value
   instance_type               = var.windows_instance_type
-  subnet_id                   = aws_subnet.client.id
-  vpc_security_group_ids      = [aws_security_group.windows_client.id]
+  subnet_id                   = module.client_subnet.subnet_id
+  vpc_security_group_ids      = [module.windows_client_sg.id]
   iam_instance_profile        = aws_iam_instance_profile.windows_ssm.name
   key_name                    = var.windows_key_name
   associate_public_ip_address = false
@@ -304,9 +277,9 @@ module "s3_privatelink" {
   source = "../.." # the s3-bucket collection module root
 
   # Networking — provided by harness above
-  vpc_id                  = aws_vpc.main.id
-  vpce_subnet_ids         = [for s in aws_subnet.app_private : s.id]
-  vpce_security_group_ids = [aws_security_group.vpce.id]
+  vpc_id                  = module.vpc.vpc_id
+  vpce_subnet_ids         = [for s in module.app_private_subnets : s.subnet_id]
+  vpce_security_group_ids = [module.vpce_sg.id]
 
   # Region and naming
   aws_region  = var.aws_region
@@ -478,7 +451,7 @@ locals {
 }
 
 resource "aws_ssm_document" "s3_access_validation" {
-  name          = "${var.name_prefix}-s3-private-access-validation"
+  name          = "${var.name_prefix}-s3-private-access-validation-${random_id.windows_resources_suffix.hex}"
   document_type = "Command"
 
   content = jsonencode({

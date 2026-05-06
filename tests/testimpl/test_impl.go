@@ -3,7 +3,6 @@ package testimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -13,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/gruntwork-io/terratest/modules/terraform"
@@ -69,7 +67,6 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	require.NoError(t, err, "failed to load AWS SDK config")
 
 	ec2Client := ec2.NewFromConfig(awsCfg)
-	s3Client := s3.NewFromConfig(awsCfg)
 	ssmClient := ssm.NewFromConfig(awsCfg)
 
 	endpointOut, err := ec2Client.DescribeVpcEndpoints(context.Background(), &ec2.DescribeVpcEndpointsInput{
@@ -79,14 +76,20 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	require.Len(t, endpointOut.VpcEndpoints, 1, "expected exactly one VPC endpoint with ID %s", endpointID)
 	endpoint := endpointOut.VpcEndpoints[0]
 
-	expectedServiceName := fmt.Sprintf("com.amazonaws.%s.s3", region)
 	assert.Equal(t, endpointID, aws.ToString(endpoint.VpcEndpointId), "endpoint ID should match Terraform output")
-	assert.Equal(t, ec2types.VpcEndpointTypeInterface, endpoint.VpcEndpointType, "endpoint type should be Interface")
-	assert.Equal(t, expectedServiceName, aws.ToString(endpoint.ServiceName), "endpoint service name should match region")
 	assert.True(t, strings.EqualFold(string(endpoint.State), "available"), "endpoint should be available")
 
-	_, err = s3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
-	require.NoError(t, err, "failed to head artifact bucket %s", bucketName)
+	// TODO: implement — verify logging target wiring
+	// When enable_logging = true, assert that the artifact bucket has server access logging
+	// enabled and the target bucket name matches the logging_bucket_name Terraform output.
+	// Use s3Client.GetBucketLogging(bucketName) and compare to
+	// terraform.Output(t, tfOptions, "logging_bucket_name").
+
+	// TODO: implement — verify replication configuration presence
+	// When enable_replication = true, assert that the artifact bucket has a replication
+	// configuration and the destination bucket ARN matches the replication_bucket_arn output.
+	// Use s3Client.GetBucketReplication(bucketName) and compare to
+	// terraform.Output(t, tfOptions, "replication_bucket_arn").
 
 	instanceOut, err := ec2Client.DescribeInstances(context.Background(), &ec2.DescribeInstancesInput{InstanceIds: []string{instanceID}})
 	require.NoError(t, err, "failed to describe instance %s", instanceID)

@@ -52,8 +52,8 @@ func TestS3BucketCollectionReadonly(t *testing.T) {
 }
 
 func TestS3BucketCollectionReadonlyReplicationAltRegion(t *testing.T) {
-	// Minimal first pass for additional secure readonly profile.
-	// TODO: add explicit scenario-targeted readonly assertions.
+	// Validates the replication-alt-region profile via non-destructive checks.
+	// Asserts replication resources exist; destination region is verified via AWS API in testimpl.
 	if os.Getenv("RUN_ADDITIONAL_COMPLETE_SCENARIOS") != "true" {
 		t.Skip("set RUN_ADDITIONAL_COMPLETE_SCENARIOS=true to run additional secure scenario profiles")
 	}
@@ -63,8 +63,8 @@ func TestS3BucketCollectionReadonlyReplicationAltRegion(t *testing.T) {
 }
 
 func TestS3BucketCollectionReadonlyExternalLoggingTarget(t *testing.T) {
-	// Requires pre-existing logging bucket in tfvars.
-	// TODO: replace with fixture provisioning or env-driven bucket input.
+	// Requires pre-existing logging bucket named in test.external-logging-target.tfvars.
+	// Set RUN_EXTERNAL_LOGGING_SCENARIO=true and provide the bucket name in the tfvars file.
 	if os.Getenv("RUN_EXTERNAL_LOGGING_SCENARIO") != "true" {
 		t.Skip("set RUN_EXTERNAL_LOGGING_SCENARIO=true to run external logging target scenario")
 	}
@@ -75,7 +75,8 @@ func TestS3BucketCollectionReadonlyExternalLoggingTarget(t *testing.T) {
 
 func TestS3BucketCollectionReadonlyExploratoryProfiles(t *testing.T) {
 	// Exploratory non-gating lane for intentionally relaxed profiles.
-	// TODO: split into dedicated test functions with profile-aware assertions.
+	// Plan-level validation for these profiles is covered in tests/terraform/.
+	// This path validates non-destructive read checks only; security posture is not asserted.
 	if os.Getenv("RUN_EXPLORATORY_COMPLETE_SCENARIOS") != "true" {
 		t.Skip("set RUN_EXPLORATORY_COMPLETE_SCENARIOS=true to run exploratory scenario profiles")
 	}

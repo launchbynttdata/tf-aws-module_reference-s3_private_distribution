@@ -13,12 +13,12 @@
 
 output "s3_bucket_name" {
   description = "Name (ID) of the S3 artifact bucket."
-  value       = aws_s3_bucket.artifacts.id
+  value       = module.artifacts_bucket.id
 }
 
 output "s3_bucket_arn" {
   description = "ARN of the S3 artifact bucket."
-  value       = aws_s3_bucket.artifacts.arn
+  value       = module.artifacts_bucket.arn
 }
 
 output "s3_interface_vpce_id" {
@@ -38,25 +38,25 @@ output "s3_vpce_bucket_host" {
 
 output "logging_bucket_name" {
   description = "Name of the S3 logging bucket (if created). Receives access logs from the artifact bucket."
-  value       = var.enable_logging && var.logging_target_bucket == null ? aws_s3_bucket.logging[0].id : var.logging_target_bucket
+  value       = var.enable_logging && var.logging_target_bucket == null ? module.logging_bucket[0].id : var.logging_target_bucket
 }
 
 output "logging_bucket_arn" {
   description = "ARN of the S3 logging bucket (if created)."
-  value       = var.enable_logging && var.logging_target_bucket == null ? aws_s3_bucket.logging[0].arn : null
+  value       = var.enable_logging && var.logging_target_bucket == null ? module.logging_bucket[0].arn : null
 }
 
 output "replication_bucket_name" {
   description = "Name of the S3 replication destination bucket (if created). Receives replicated objects from the artifact bucket."
-  value       = var.enable_replication ? aws_s3_bucket.replication[0].id : null
+  value       = var.enable_replication ? module.replication_bucket[0].id : null
 }
 
 output "replication_bucket_arn" {
   description = "ARN of the S3 replication destination bucket (if created)."
-  value       = var.enable_replication ? aws_s3_bucket.replication[0].arn : null
+  value       = var.enable_replication ? module.replication_bucket[0].arn : null
 }
 
 output "replication_bucket_private_base_url" {
   description = "Bucket base URL for private access to the replication bucket over the S3 interface endpoint hostname."
-  value       = var.enable_replication ? "https://${local.s3_vpce_bucket_host}/${aws_s3_bucket.replication[0].id}" : null
+  value       = var.enable_replication ? "https://${local.s3_vpce_bucket_host}/${module.replication_bucket[0].id}" : null
 }

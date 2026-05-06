@@ -1,6 +1,6 @@
 output "vpc_id" {
   description = "ID of the test harness VPC."
-  value       = aws_vpc.main.id
+  value       = module.vpc.vpc_id
 }
 
 output "aws_region" {
@@ -10,12 +10,12 @@ output "aws_region" {
 
 output "app_private_subnet_ids" {
   description = "IDs of the private app subnets that host the endpoint ENIs."
-  value       = [for s in aws_subnet.app_private : s.id]
+  value       = [for s in module.app_private_subnets : s.subnet_id]
 }
 
 output "client_subnet_id" {
   description = "ID of the client emulator subnet."
-  value       = aws_subnet.client.id
+  value       = module.client_subnet.subnet_id
 }
 
 output "windows_instance_id" {
