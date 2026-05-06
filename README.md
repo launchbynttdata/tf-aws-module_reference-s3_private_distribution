@@ -22,9 +22,17 @@ The intended standalone repository identity is `tf-aws-module_collection-private
   - tests/post_deploy_functional_readonly (Go/Terratest non-destructive verification)
   - tests/testimpl (shared provider API validation logic)
 
+## Getting Started
+
+Required files and setup:
+
+- **`.golangci.yaml`** — Go linter configuration. This file is tracked in git and required for `make lint` to work. Do not add it to `.gitignore`.
+- Run `make configure` to install dependencies and set up pre-commit hooks.
+- Run `make lint` to validate the module before testing.
+
 ## Testing
 
-- `make test` executes Terraform example planning and policy checks (`conftest` + `regula`), then runs Go post-deploy tests via `go/test`.
+- `make test` executes Terraform example planning (`tfmodule/plan`) and then runs functional Go post-deploy tests via `go/test`.
 - `make test` currently runs functional Go tests (readonly tests are available as a separate target).
 - `make go/readonly_test` runs readonly/non-destructive Go verification.
 - `tests/terraform/scaffold.tftest.hcl` exists as a Terraform test scaffold and is not currently wired into `make test`.
@@ -92,7 +100,7 @@ If continuing this work later, prioritize the following in order:
   - Treat this as compensating evidence while plan-time waivers remain.
 
 3. Re-test waiver removability after tooling changes:
-  - Re-run `make tfmodule/plan` and `make tfmodule/test/regula` whenever Regula/policy bundles are upgraded.
+  - Re-run `make tfmodule/plan` whenever Terraform/policy tooling is upgraded, and re-run your policy check workflow lane in CI.
   - Attempt removing `FG_R00100`, `FG_R00101`, `FG_R00274`, and `FG_R00275` again after upgrades.
 
 4. Keep docs and code comments synchronized:
@@ -209,7 +217,7 @@ module "s3_privatelink" {
 
 ## Implementation Status
 
-Core private distribution bucket behavior is implemented, examples are executable, and policy checks are active. Remaining follow-up work is focused on incremental hardening and naming finalization when this module is promoted to its standalone repository.
+Core private distribution bucket behavior is implemented, examples are executable, and policy/waiver guidance is documented. Remaining follow-up work is focused on incremental hardening and naming finalization when this module is promoted to its standalone repository.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

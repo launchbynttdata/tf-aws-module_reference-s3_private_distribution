@@ -19,6 +19,10 @@ When guidance conflicts, follow explicit user instructions first, then document 
 4. Update tests and docs when behavior changes.
 5. Run validation commands (`make lint`, `make test`) before finalizing.
 
+## Required Files
+
+- **`.golangci.yaml`** — Go linter configuration. MUST be tracked in git (not gitignored). Required for `make lint` to work after cloning the repository.
+
 ## Blocking Review Checklist
 
 - [ ] No Terraform resource blocks named `this` in new/modified code unless explicitly required by an upstream module.
