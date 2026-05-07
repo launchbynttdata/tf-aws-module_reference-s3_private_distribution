@@ -1,30 +1,31 @@
-# Complete Example
+# Complete Example — Lambda-Based Validation
 
 This complete example deploys a private validation harness for the private distribution bucket collection module.
 
-It validates end-to-end behavior from a Windows EC2 client over private networking only:
+It validates end-to-end behavior using a **Lambda function** over private networking only:
 
 - S3 artifact access through an interface VPC endpoint
-- Session Manager connectivity through private SSM endpoints (no NAT/IGW)
-- Positive and negative access checks (200/403/403)
+- Lambda function running in private subnets with network-path-only access (no IAM credentials assumed)
+- Positive and negative access checks: **200/403/403** (valid object, invalid object, disallowed bucket)
 
-Note: the missing-object probe intentionally expects `403` rather than `404`. Through the S3 interface endpoint path used here, a missing key is surfaced as access denied instead of the public-S3-style not found response.
+**Key Design**: The Lambda function uses `urllib.request` without boto3 or AWS credentials. This accurately simulates corporate network clients that only have network-path access to S3 endpoints. Validation is purely transport-layer, not IAM-based.
+
+**Note on 403 for missing objects**: The missing-object probe intentionally expects `403` rather than `404`. Through the S3 interface endpoint path used here, a missing key is surfaced as access denied instead of the public-S3-style not found response. This is expected behavior.
 
 ## What This Deploys
 
-- VPC with private app subnets and a client subnet
-- S3 interface endpoint consumed by the collection module
-- SSM, SSMMessages, and EC2Messages interface endpoints
-- Windows EC2 instance managed by Session Manager
+- VPC with private app subnets
+- S3 interface VPC endpoint consumed by the collection module
+- Lambda function (Python 3.12) deployed in private subnets
+- Lambda execution role (no S3 IAM permissions; access controlled by bucket policy `aws:SourceVpce` condition)
+- Lambda security group (HTTPS egress only to VPC CIDR)
 - Artifact bucket and sample test objects
 - Disallowed bucket/object used for endpoint-policy negative test
-- SSM command document for automated URL validation
 
 ## Prerequisites
 
 1. AWS credentials configured locally (`aws sts get-caller-identity` succeeds)
 2. Terraform `>= 1.6.0`
-3. AWS CLI v2
 
 ## Usage
 
@@ -34,89 +35,116 @@ The complete example calls the module under test from this repository root. The 
 
 ```hcl
 module "s3_privatelink" {
-	source = "../.."
+  source = "../.."
 
-	vpc_id                  = aws_vpc.main.id
-	vpce_subnet_ids         = [for s in aws_subnet.app_private : s.id]
-	vpce_security_group_ids = [aws_security_group.vpce.id]
+  vpc_id                  = aws_vpc.main.id
+  vpce_subnet_ids         = [for s in aws_subnet.app_private : s.id]
+  vpce_security_group_ids = [aws_security_group.vpce.id]
 
-	aws_region  = var.aws_region
-	name_prefix = var.name_prefix
+  aws_region  = var.aws_region
+  name_prefix = var.name_prefix
 
-	management_principal_arns           = var.management_principal_arns
-	pipeline_role_arns                  = var.pipeline_role_arns
-	additional_vpce_allowed_bucket_arns = var.additional_vpce_allowed_bucket_arns
+  management_principal_arns           = var.management_principal_arns
+  pipeline_role_arns                  = var.pipeline_role_arns
+  additional_vpce_allowed_bucket_arns = var.additional_vpce_allowed_bucket_arns
 
-	tags = var.tags
+  tags = var.tags
 }
 ```
 
-## Phase 1: Deploy and Validate
+## Running Tests
 
-Primary path (Go/Terratest via repository root):
+**Primary path** (automated end-to-end via Go/Terratest):
 
 ```bash
 make test
 ```
 
-This runs provider/API-based verification and the SSM command validation flow through Go tests.
+This command:
+1. Plans the Terraform example
+2. Deploys the Lambda function and S3 infrastructure (~2-3 min)
+3. Invokes the Lambda function to validate network-path access (~5 seconds)
+4. Destroys all infrastructure (~10-15 min; S3 cleanup is the bottleneck)
+
+**Expected duration**: ~15-20 minutes total (most time is infrastructure teardown, not validation)
+
+**Manual validation** (if needed during development):
+
+```bash
+cd examples/complete
+terraform init -backend=false
+terraform apply -var-file=test.tfvars
+
+# Invoke Lambda manually
+aws lambda invoke --region $(terraform output -raw aws_region) \
+  --function-name $(terraform output -raw lambda_function_name) \
+  /tmp/response.json && cat /tmp/response.json | jq .
+
+# Clean up
+terraform destroy -var-file=test.tfvars
+```
 
 ## Test Matrix (Tfvars Profiles)
 
 Profile files for this example and expected validation intent:
 
-| Profile | Purpose | Include in default CI | Expected checks |
+| Profile | Purpose | Include in default CI | Expected Lambda checks |
 |---|---|---|---|
-| `test.tfvars` | Baseline secure, full-feature path | Yes | SSM `200/403/403`; endpoint/bucket/SSM checks; versioning/lifecycle/logging/replication present |
-| `test.external-logging-target.tfvars` | External logging bucket path | Yes | Logging targets external bucket and secure transport constraints remain intact |
-| `test.replication-alt-region.tfvars` | Replication destination-region override | Yes | Replication resources exist and destination-region behavior is honored |
-| `test.logging-disabled.tfvars` | Logging disabled behavior | No (exploratory) | Expected degraded security mode; use separate non-gating lane |
-| `test.replication-disabled.tfvars` | Replication disabled behavior | No (exploratory) | Expected degraded durability mode; use separate non-gating lane |
-| `test.lifecycle-disabled.tfvars` / `test.versioning-disabled.tfvars` | Lifecycle/versioning disabled behavior | No (exploratory) | Expected degraded retention/version control; use separate non-gating lane |
+| `test.tfvars` | Baseline secure, full-feature path | Yes | Lambda validates `200/403/403`; endpoint/bucket checks; versioning/lifecycle/logging/replication present |
+| `test.external-logging-target.tfvars` | External logging bucket path | Yes | Logging targets external bucket; secure transport constraints remain intact; Lambda `200/403/403` validation passes |
+| `test.replication-alt-region.tfvars` | Replication destination-region override | Yes | Replication resources exist and destination-region behavior honored; Lambda validation passes |
+| `test.logging-disabled.tfvars` | Logging disabled behavior | No (exploratory) | Expected degraded security mode; Lambda validation still expects `200/403/403` |
+| `test.replication-disabled.tfvars` | Replication disabled behavior | No (exploratory) | Expected degraded durability mode; Lambda validation still expects `200/403/403` |
+| `test.lifecycle-disabled.tfvars` / `test.versioning-disabled.tfvars` | Lifecycle/versioning disabled behavior | No (exploratory) | Expected degraded retention/version control; Lambda validation still expects `200/403/403` |
 
-Security note: exploratory profiles above intentionally relax controls that map to Regula waiver IDs `FG_R00101`, `FG_R00274`, and `FG_R00275` in this module.
+**Security note**: Exploratory profiles intentionally relax controls that map to Regula waiver IDs `FG_R00101`, `FG_R00274`, and `FG_R00275` in this module. All profiles maintain the core S3 endpoint policy validation via Lambda.
 
-Compatibility path (manual helper script from this directory):
+## Validation Details
 
-From this directory:
+### Expected Test Results
 
-```bash
-terraform init -backend=false
-terraform apply -var-file=test.tfvars
+The Lambda function tests three scenarios:
+
+1. **Valid existing object** → HTTP `200` (artifact bucket, valid object key)
+2. **Invalid/missing object** → HTTP `403` (artifact bucket, non-existent object key)
+3. **Disallowed bucket** → HTTP `403` (disallowed bucket, even if object exists)
+
+Each result is captured and reported in JSON format by the Lambda function:
+
+```json
+{
+  "statusCode": 200,
+  "all_passed": true,
+  "results": [
+    {
+      "name": "valid_existing_object",
+      "expected": 200,
+      "actual": 200,
+      "passed": true
+    },
+    {
+      "name": "invalid_missing_object",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    },
+    {
+      "name": "disallowed_bucket_object",
+      "expected": 403,
+      "actual": 403,
+      "passed": true
+    }
+  ]
+}
 ```
 
-Run validation using the helper script:
+### Lambda Implementation
 
-```bash
-./scripts/run-phase1-validation.sh
-```
-
-The script will:
-
-1. Re-apply using `test.tfvars`
-2. Invoke the SSM validation document on the Windows instance
-3. Poll command status until completion
-4. Save evidence under `artifacts/<timestamp>/`
-5. Fail non-zero if any expected status check fails
-
-### Pass Criteria
-
-Validation is successful only when all checks pass:
-
-1. `valid_existing_object` -> `200`
-2. `invalid_missing_object` -> `403` (expected over the S3 interface endpoint path; do not treat this as a public S3 `404` case)
-3. `disallowed_bucket_object` -> `403`
-
-## Manual Validation Commands
-
-If you prefer direct CLI control:
-
-```bash
-terraform output ssm_validation_send_command_example
-terraform output ssm_validation_get_invocation_example
-```
-
-Use the first output to run the command, then replace `COMMAND_ID` in the second command.
+The Lambda function (`lambda_function/index.py`):
+- Uses Python 3.12 with `urllib.request` (no boto3, no IAM credentials)
+- Runs in private subnets with network connectivity to S3 interface endpoint only
+- Environment variables inject bucket names and endpoint hostname at deploy time
+- Returns comprehensive JSON response for test assertion
 
 ## Teardown
 

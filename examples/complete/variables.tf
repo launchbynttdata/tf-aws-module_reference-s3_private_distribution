@@ -1,153 +1,105 @@
-# ---------------------------------------------------------------------------
-# Region and naming
-# ---------------------------------------------------------------------------
-
 variable "aws_region" {
-  description = "AWS region for test deployment."
+  description = "AWS region for resource deployment."
   type        = string
-  default     = "us-west-1"
+  default     = "us-east-1"
 }
 
 variable "name_prefix" {
-  description = "Base naming prefix for all harness and module resources."
+  description = "Prefix for resource names."
   type        = string
-  default     = "msix-s3-complete"
+  default     = "launch-s3probe"
 }
-
-# ---------------------------------------------------------------------------
-# Harness networking
-# ---------------------------------------------------------------------------
 
 variable "vpc_cidr" {
-  description = "CIDR block for the test VPC."
+  description = "CIDR block for the VPC."
   type        = string
-  default     = "10.48.0.0/16"
+  default     = "10.0.0.0/16"
 }
 
-variable "app_private_subnet_cidrs" {
-  description = "CIDRs for private app subnets (one per AZ; receive S3/SSM endpoint ENIs)."
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for private subnets (one per AZ)."
   type        = list(string)
-  default     = ["10.48.10.0/24", "10.48.11.0/24"]
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
-variable "client_subnet_cidr" {
-  description = "CIDR for the single-AZ client emulator subnet."
+variable "lambda_runtime" {
+  description = "Lambda runtime for the validation function."
   type        = string
-  default     = "10.48.20.0/24"
+  default     = "python3.12"
 }
 
-# ---------------------------------------------------------------------------
-# Windows client emulator
-# ---------------------------------------------------------------------------
-
-variable "windows_instance_type" {
-  description = "EC2 instance type for the Windows client emulator."
-  type        = string
-  default     = "t3.large"
-}
-
-variable "windows_key_name" {
-  description = "Optional EC2 key pair for the Windows instance. Leave null for SSM-only access."
-  type        = string
-  default     = null
-}
-
-variable "admin_ingress_cidrs" {
-  description = "Optional CIDR blocks for RDP (3389) ingress to the Windows emulator. Empty list keeps RDP closed."
-  type        = list(string)
-  default     = []
-}
-
-variable "run_ssm_validation_on_apply" {
-  description = "When true, creates an SSM association that runs the private access validation document automatically during apply. Keep false for deterministic applies and trigger validation manually with send-command."
-  type        = bool
-  default     = false
-}
-
-# ---------------------------------------------------------------------------
-# Collection module — policy inputs
-# (these are passed through to the s3-bucket collection module)
-# ---------------------------------------------------------------------------
-
+# S3 Module Variables
 variable "management_principal_arns" {
-  description = "Principal ARNs exempted from the VPCE-only read restriction (passed to collection module)."
+  description = "ARNs of principals allowed to manage the S3 bucket."
   type        = list(string)
   default     = []
 }
 
 variable "pipeline_role_arns" {
-  description = "IAM role ARNs granted write access to the artifact bucket (passed to collection module)."
+  description = "ARNs of pipeline roles allowed to access the bucket."
   type        = list(string)
   default     = []
 }
-
-variable "additional_vpce_allowed_bucket_arns" {
-  description = "Additional S3 bucket ARNs allowed through the endpoint policy (passed to collection module)."
-  type        = list(string)
-  default     = []
-}
-
-# ---------------------------------------------------------------------------
-# Collection module — feature toggles
-# (these are passed through to the collection module)
-# ---------------------------------------------------------------------------
 
 variable "enable_versioning" {
-  description = "Pass-through: enable versioning on the collection module artifact bucket."
+  description = "Enable versioning on the S3 bucket."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "enable_lifecycle" {
-  description = "Pass-through: enable lifecycle rules on the collection module artifact bucket."
+  description = "Enable lifecycle rules on the bucket."
   type        = bool
   default     = true
 }
 
 variable "lifecycle_noncurrent_version_expiration_days" {
-  description = "Pass-through: non-current object expiration days for lifecycle rules."
+  description = "Days to retain noncurrent versions before expiration."
   type        = number
-  default     = 90
+  default     = 30
 }
 
 variable "lifecycle_incomplete_multipart_upload_days" {
-  description = "Pass-through: days to abort incomplete multipart uploads."
+  description = "Days to retain incomplete multipart uploads."
   type        = number
   default     = 7
 }
 
 variable "enable_logging" {
-  description = "Pass-through: enable S3 access logging behavior in the collection module."
+  description = "Enable S3 access logging."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "logging_target_bucket" {
-  description = "Pass-through: optional external logging target bucket. If null, module-managed logging bucket is used when logging is enabled."
+  description = "Target bucket for access logs."
   type        = string
   default     = null
 }
 
 variable "logging_prefix" {
-  description = "Pass-through: prefix for S3 access logs."
+  description = "Prefix for access logs."
   type        = string
-  default     = "artifact-bucket-logs/"
+  default     = "logs/"
 }
 
 variable "enable_replication" {
-  description = "Pass-through: enable replication behavior in the collection module."
+  description = "Enable cross-region replication."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "replication_destination_region" {
-  description = "Pass-through: optional destination region for replication bucket creation."
+  description = "Destination region for replication."
   type        = string
   default     = null
 }
 
 variable "tags" {
-  description = "Additional tags applied to all resources."
+  description = "Tags to apply to all resources."
   type        = map(string)
-  default     = {}
+  default = {
+    Terraform = "true"
+    Purpose   = "S3-PrivateLink-Validation"
+  }
 }

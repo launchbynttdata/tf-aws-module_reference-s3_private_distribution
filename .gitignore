@@ -61,3 +61,4 @@ azure_env.sh
 
 # VS Code
 .vscode/
+lambda_function.zip

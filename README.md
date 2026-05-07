@@ -33,8 +33,9 @@ Required files and setup:
 ## Testing
 
 - `make test` executes Terraform example planning (`tfmodule/plan`) and then runs functional Go post-deploy tests via `go/test`.
-- `make test` currently runs functional Go tests (readonly tests are available as a separate target).
-- `make go/readonly_test` runs readonly/non-destructive Go verification.
+- Post-deploy tests invoke a Lambda function deployed in private subnets to validate S3 endpoint access via network-path-only conditions (no IAM credentials).
+- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~15-20 minutes (most time is S3 bucket cleanup).
+- `make go/readonly_test` runs readonly/non-destructive Go verification against existing infrastructure.
 - `tests/terraform/scaffold.tftest.hcl` exists as a Terraform test scaffold and is not currently wired into `make test`.
 
 ## Test Matrix (Tfvars Profiles)
@@ -45,9 +46,9 @@ The profiles below are available for explicit scenario coverage in `examples/com
 
 | Profile | Intent | Security posture | Expected assertions |
 |---|---|---|---|
-| `test.tfvars` | Baseline secure deployment | Secure defaults or explicit secure values (`enable_versioning=true`, `enable_lifecycle=true`, `enable_logging=true`, `enable_replication=true`) | VPC endpoint exists and is interface type; bucket exists; SSM validation returns `200/403/403`; logging/replication/versioning/lifecycle resources are present |
-| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure if `enable_logging=true` and target bucket policy permits logging writes | `aws_s3_bucket_logging.artifacts` targets external bucket; no auto-created logging bucket; bucket policy + transport controls still enforced |
-| `test.replication-alt-region.tfvars` | Validate replication destination override | Secure when replication remains enabled | Replication bucket/resources exist and use specified destination region; replication configuration remains active |
+| `test.tfvars` | Baseline secure deployment | Secure defaults or explicit secure values (`enable_versioning=true`, `enable_lifecycle=true`, `enable_logging=true`, `enable_replication=true`) | VPC endpoint exists and is interface type; bucket exists; Lambda validation returns `200/403/403`; logging/replication/versioning/lifecycle resources are present |
+| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure if `enable_logging=true` and target bucket policy permits logging writes | `aws_s3_bucket_logging.artifacts` targets external bucket; no auto-created logging bucket; bucket policy + transport controls still enforced; Lambda validation passes |
+| `test.replication-alt-region.tfvars` | Validate replication destination override | Secure when replication remains enabled | Replication bucket/resources exist and use specified destination region; replication configuration remains active; Lambda validation passes |
 
 ### Exploratory profiles (not recommended for default policy gate)
 
