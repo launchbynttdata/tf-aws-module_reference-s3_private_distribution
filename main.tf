@@ -357,9 +357,12 @@ locals {
   # Policy Statement Breakdown:
   #
   #   1. DenyAccessOutsideVPCEndpoint
-  #      - Denies GetObject and ListBucket UNLESS source is the interface endpoint
-  #      - EXCEPT for principals matching management_principal_arn_patterns
-  #      - This prevents accidental direct access while allowing admin/Terraform operations
+  #      - Denies read (GetObject, ListBucket) and write (PutObject, DeleteObject,
+  #        DeleteObjectVersion) actions UNLESS source is the interface endpoint
+  #      - EXCEPT for principals matching management_principal_arn_patterns (IAM role
+  #        and STS assumed-role patterns for management/pipeline principals)
+  #      - Uses ArnNotLike on aws:PrincipalArn to restrict only the specific
+  #        management principals — not all in-account principals
   #
   #   2. AllowClientReadViaVPCEndpoint
   #      - Permits GetObject when source is the interface endpoint
@@ -379,7 +382,13 @@ locals {
         Principal = "*"
         Action = [
           "s3:GetObject",
-          "s3:ListBucket"
+          "s3:GetObjectVersion",
+          "s3:ListBucket",
+          "s3:ListBucketVersions",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:DeleteObjectVersion",
+          "s3:AbortMultipartUpload",
         ]
         Resource = [
           module.artifacts_bucket.arn,
@@ -389,8 +398,8 @@ locals {
           StringNotEquals = {
             "aws:SourceVpce" = module.s3_interface_vpce.id
           }
-          StringNotEqualsIfExists = {
-            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
+          ArnNotLike = {
+            "aws:PrincipalArn" = local.management_principal_arn_patterns
           }
         }
       },

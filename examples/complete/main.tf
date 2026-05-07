@@ -128,7 +128,7 @@ module "s3_privatelink" {
 
   management_principal_arns           = var.management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
-  additional_vpce_allowed_bucket_arns = [aws_s3_bucket.disallowed_target.arn]
+  additional_vpce_allowed_bucket_arns = []
 
   enable_versioning                            = var.enable_versioning
   enable_lifecycle                             = var.enable_lifecycle
@@ -159,7 +159,13 @@ resource "aws_s3_object" "sample_appinstaller" {
 }
 
 # ---------------------------------------------------------------------------
-# Disallowed Bucket (negative test target - accessed via endpoint but no allow)
+# Disallowed Bucket (negative test target)
+#
+# The endpoint policy for the S3 interface endpoint does NOT include this
+# bucket in its allowlist. This bucket's own policy DOES allow GetObject so
+# that, if the endpoint restriction were absent, the probe would succeed.
+# This makes the endpoint policy the sole control under test — a 403 result
+# proves the endpoint policy is blocking, not the bucket policy.
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "disallowed_target" {
@@ -172,8 +178,37 @@ resource "aws_s3_bucket_public_access_block" "disallowed_target" {
   bucket                  = aws_s3_bucket.disallowed_target.id
   block_public_acls       = true
   ignore_public_acls      = true
-  block_public_policy     = true
-  restrict_public_buckets = true
+  block_public_policy     = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_policy" "disallowed_target" {
+  bucket = aws_s3_bucket.disallowed_target.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource  = [aws_s3_bucket.disallowed_target.arn, "${aws_s3_bucket.disallowed_target.arn}/*"]
+        Condition = { Bool = { "aws:SecureTransport" = "false" } }
+      },
+      {
+        # Bucket policy permits GET so the endpoint policy is the sole control.
+        # Without the endpoint restriction this GET would succeed; with it the
+        # endpoint policy blocks the request before the bucket policy is reached.
+        Sid       = "AllowGetForEndpointPolicyTest"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.disallowed_target.arn}/*"
+        Condition = { Bool = { "aws:SecureTransport" = "true" } }
+      }
+    ]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.disallowed_target]
 }
 
 resource "aws_s3_object" "disallowed_probe" {

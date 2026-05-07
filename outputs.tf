@@ -37,8 +37,8 @@ output "s3_vpce_bucket_host" {
 }
 
 output "logging_bucket_name" {
-  description = "Name of the S3 logging bucket (if created). Receives access logs from the artifact bucket."
-  value       = var.enable_logging && var.logging_target_bucket == null ? module.logging_bucket[0].id : var.logging_target_bucket
+  description = "Name of the S3 logging bucket. Returns the auto-created bucket name, the provided external target bucket name, or null when logging is disabled."
+  value       = var.enable_logging ? (var.logging_target_bucket != null ? var.logging_target_bucket : module.logging_bucket[0].id) : null
 }
 
 output "logging_bucket_arn" {

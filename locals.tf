@@ -63,7 +63,9 @@ locals {
         Action   = "s3:PutObject"
         Resource = "${local.logging_bucket_arn_computed}/*"
         Condition = {
-          Bool = { "aws:SecureTransport" = "true" }
+          Bool         = { "aws:SecureTransport" = "true" }
+          ArnLike      = { "aws:SourceArn" = module.artifacts_bucket.arn }
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
       }
     ]
