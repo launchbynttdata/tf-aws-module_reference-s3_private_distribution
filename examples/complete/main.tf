@@ -141,6 +141,10 @@ module "s3_privatelink" {
   replication_destination_region               = var.replication_destination_region
 
   tags = var.tags
+
+  providers = {
+    aws.replication = aws.replication
+  }
 }
 
 # ---------------------------------------------------------------------------

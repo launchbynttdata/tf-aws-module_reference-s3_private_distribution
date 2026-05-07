@@ -114,6 +114,10 @@ module "replication_bucket" {
   count  = var.enable_replication ? 1 : 0
   source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
 
+  providers = {
+    aws = aws.replication
+  }
+
   bucket_name                        = local.replication_bucket_name_computed
   enable_versioning                  = true
   use_default_server_side_encryption = true
