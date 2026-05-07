@@ -16,9 +16,9 @@ import (
 )
 
 type validationContext struct {
-	region           string
-	functionName     string
-	lambdaClient     *lambda.Client
+	region       string
+	functionName string
+	lambdaClient *lambda.Client
 }
 
 type validationResult struct {
@@ -29,11 +29,10 @@ type validationResult struct {
 }
 
 type lambdaResponse struct {
-	StatusCode int                 `json:"statusCode"`
-	AllPassed  bool                `json:"all_passed"`
-	Results    []validationResult  `json:"results"`
+	StatusCode int                `json:"statusCode"`
+	AllPassed  bool               `json:"all_passed"`
+	Results    []validationResult `json:"results"`
 }
-
 
 // TestComposableComplete invokes the Lambda validation function to validate
 // private S3 access via the interface endpoint (network path only, no IAM).
