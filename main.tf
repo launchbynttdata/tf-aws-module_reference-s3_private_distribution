@@ -428,12 +428,7 @@ locals {
         Sid       = "AllowManagementAccess"
         Effect    = "Allow"
         Principal = "*"
-        Action = [
-          "s3:GetObject",
-          "s3:ListBucket",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
+        Action    = "s3:*"
         Resource = [
           module.artifacts_bucket.arn,
           "${module.artifacts_bucket.arn}/*"
