@@ -105,8 +105,4 @@ module "s3_privatelink" {
   name_prefix = var.name_prefix
 
   # All other inputs use secure defaults (see collection module variables.tf)
-
-  providers = {
-    aws.replication = aws.replication
-  }
 }

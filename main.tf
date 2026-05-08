@@ -11,6 +11,11 @@
 # limitations under the License.
 # ---------------------------------------------------------------------------
 
+provider "aws" {
+  alias  = "replication"
+  region = var.replication_destination_region != null ? var.replication_destination_region : var.aws_region
+}
+
 data "aws_caller_identity" "current" {}
 
 resource "random_string" "suffix" {

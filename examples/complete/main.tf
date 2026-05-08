@@ -142,9 +142,6 @@ module "s3_privatelink" {
 
   tags = var.tags
 
-  providers = {
-    aws.replication = aws.replication
-  }
 }
 
 # ---------------------------------------------------------------------------

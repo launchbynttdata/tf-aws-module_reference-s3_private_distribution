@@ -56,7 +56,7 @@ interface endpoints.
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.6.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.6 |
@@ -64,14 +64,14 @@ interface endpoints.
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
+| ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_vpc"></a> [vpc](#module\_vpc) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc | 1.0.5 |
 | <a name="module_app_private_subnets"></a> [app\_private\_subnets](#module\_app\_private\_subnets) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet | 1.0.5 |
 | <a name="module_client_subnet"></a> [client\_subnet](#module\_client\_subnet) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet | 1.0.5 |
@@ -86,7 +86,7 @@ interface endpoints.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_default_security_group.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/default_security_group) | resource |
 | [aws_iam_instance_profile.windows_ssm](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) | resource |
 | [aws_iam_role.windows_ssm](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
@@ -110,7 +110,7 @@ interface endpoints.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for test deployment. | `string` | `"us-west-1"` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix for all harness and module resources. | `string` | `"msix-s3-complete"` | no |
 | <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the test VPC. | `string` | `"10.48.0.0/16"` | no |
@@ -136,7 +136,7 @@ interface endpoints.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_windows_instance_id"></a> [windows\_instance\_id](#output\_windows\_instance\_id) | Instance ID of the Windows SSM-managed client. |
 | <a name="output_ssm_validation_document_name"></a> [ssm\_validation\_document\_name](#output\_ssm\_validation\_document\_name) | Name of the SSM document to run the 200/403/403 validation. |
 | <a name="output_ssm_send_command_example"></a> [ssm\_send\_command\_example](#output\_ssm\_send\_command\_example) | AWS CLI command to trigger the validation document. |
