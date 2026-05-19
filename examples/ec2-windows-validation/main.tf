@@ -51,7 +51,8 @@ resource "random_id" "windows_resources_suffix" {
 # ---------------------------------------------------------------------------
 
 module "vpc" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc?ref=1.0.5"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc/aws"
+  version = "~> 1.0"
 
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -71,7 +72,9 @@ resource "aws_default_security_group" "default" {
 # ---------------------------------------------------------------------------
 
 module "app_private_subnets" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet?ref=1.0.5"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/subnet/aws"
+  version = "~> 1.0"
+
   for_each = {
     for idx, cidr in var.app_private_subnet_cidrs :
     tostring(idx) => { cidr = cidr, az = local.app_azs[idx] }
@@ -85,7 +88,8 @@ module "app_private_subnets" {
 }
 
 module "client_subnet" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet?ref=1.0.5"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/subnet/aws"
+  version = "~> 1.0"
 
   vpc_id                  = module.vpc.vpc_id
   cidr_block              = var.client_subnet_cidr
@@ -99,7 +103,8 @@ module "client_subnet" {
 # ---------------------------------------------------------------------------
 
 module "vpce_sg" {
-  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
+  source      = "terraform.registry.launch.nttdata.com/module_primitive/security_group/aws"
+  version     = "~> 0.7"
   name        = "${var.name_prefix}-win-vpce-sg"
   description = "S3 interface endpoint - HTTPS inbound"
   vpc_id      = module.vpc.vpc_id
@@ -107,7 +112,9 @@ module "vpce_sg" {
 }
 
 module "vpce_sg_ingress" {
-  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws"
+  version = "~> 0.1"
+
   for_each = toset(concat([var.client_subnet_cidr], var.app_private_subnet_cidrs))
 
   security_group_id = module.vpce_sg.id
@@ -119,7 +126,8 @@ module "vpce_sg_ingress" {
 }
 
 module "windows_client_sg" {
-  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
+  source      = "terraform.registry.launch.nttdata.com/module_primitive/security_group/aws"
+  version     = "~> 0.7"
   name        = "${var.name_prefix}-win-client-sg"
   description = "Windows emulator security group"
   vpc_id      = module.vpc.vpc_id
@@ -127,7 +135,8 @@ module "windows_client_sg" {
 }
 
 module "windows_client_sg_rdp_ingress" {
-  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  source   = "terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws"
+  version  = "~> 0.1"
   for_each = toset(var.admin_ingress_cidrs)
 
   security_group_id = module.windows_client_sg.id
@@ -139,7 +148,8 @@ module "windows_client_sg_rdp_ingress" {
 }
 
 module "ssm_endpoints_sg" {
-  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
+  source      = "terraform.registry.launch.nttdata.com/module_primitive/security_group/aws"
+  version     = "~> 0.7"
   name        = "${var.name_prefix}-win-ssm-vpce-sg"
   description = "SSM interface endpoints"
   vpc_id      = module.vpc.vpc_id
@@ -147,7 +157,8 @@ module "ssm_endpoints_sg" {
 }
 
 module "ssm_endpoints_sg_ingress" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws"
+  version = "~> 0.1"
 
   security_group_id = module.ssm_endpoints_sg.id
   ip_protocol       = "tcp"
@@ -258,7 +269,6 @@ module "s3_privatelink" {
   aws_region  = var.aws_region
   name_prefix = var.name_prefix
 
-  management_principal_arns           = var.management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
   additional_vpce_allowed_bucket_arns = var.additional_vpce_allowed_bucket_arns
 

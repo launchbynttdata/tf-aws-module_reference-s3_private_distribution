@@ -50,12 +50,6 @@ variable "lambda_runtime" {
 }
 
 # S3 Module Variables
-variable "management_principal_arns" {
-  description = "ARNs of principals allowed to manage the S3 bucket."
-  type        = list(string)
-  default     = []
-}
-
 variable "pipeline_role_arns" {
   description = "ARNs of pipeline roles allowed to access the bucket."
   type        = list(string)

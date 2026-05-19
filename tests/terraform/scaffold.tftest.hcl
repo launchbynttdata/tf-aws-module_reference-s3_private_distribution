@@ -14,9 +14,9 @@ variables {
   # Minimal required variables for plan to succeed.
   # All variables in examples/complete have defaults; these overrides document
   # the intent of the test run and keep names distinct from production values.
-  aws_region                   = "us-east-2"
+  aws_region                     = "us-east-2"
   replication_destination_region = "us-west-1"
-  name_prefix                  = "test-s3-plan"
+  name_prefix                    = "test-s3-plan"
 }
 
 # ---------------------------------------------------------------------------

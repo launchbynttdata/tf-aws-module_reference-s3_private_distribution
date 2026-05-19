@@ -31,7 +31,9 @@ resource "random_string" "suffix" {
 # ---------------------------------------------------------------------------
 
 module "artifacts_bucket" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
+  version = "~> 1.1"
 
   bucket_name                        = local.s3_bucket_name
   enable_versioning                  = var.enable_versioning
@@ -65,8 +67,10 @@ resource "aws_s3_bucket_policy" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "logging_bucket" {
-  count  = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  count = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
+  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
+  version = "~> 1.1"
 
   bucket_name                        = local.logging_bucket_name_computed
   use_default_server_side_encryption = true
@@ -97,9 +101,9 @@ resource "aws_s3_bucket_logging" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "s3_interface_vpce" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=0.1.0"
-  # source = "terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws"
-  # version = "~> 0.1"
+  # source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=0.1.0"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws"
+  version = "~> 0.1"
 
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.s3"
@@ -120,8 +124,9 @@ module "s3_interface_vpce" {
 # ---------------------------------------------------------------------------
 
 module "replication_bucket" {
-  count  = var.enable_replication ? 1 : 0
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  count   = var.enable_replication ? 1 : 0
+  source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
+  version = "~> 1.1"
 
   providers = {
     aws = aws.replication
@@ -244,61 +249,6 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
 }
 
 locals {
-  # management_principal_arns aggregates the caller identity, any pipeline role ARNs,
-  # and any additional principals passed via var.management_principal_arns.
-  # NOTE: this local is not currently referenced by option_b_statements, which now uses
-  # aws:PrincipalAccount for account-level exemption (see management_principal_arn_patterns
-  # comment below for context). It is retained if per-ARN policy control is needed later.
-  management_principal_arns = distinct(concat(
-    [data.aws_caller_identity.current.arn],
-    var.pipeline_role_arns,
-    var.management_principal_arns
-  ))
-
-  # Management principal ARN patterns — preserved for reference, NOT currently active
-  # in option_b_statements.
-  #
-  # These patterns were originally used in ArnLike/ArnNotLike conditions for
-  # aws:PrincipalArn in DenyAccessOutsideVPCEndpoint and AllowManagementAccess.
-  #
-  # Why they were superseded by aws:PrincipalAccount:
-  #   1. aws:PrincipalArn is unreliable for AWSReservedSSO_* roles managed by
-  #      IAM Identity Center. The STS session ARN generated at SSO login includes
-  #      a user-specific session name
-  #        (arn:aws:sts::ACCOUNT:assumed-role/AWSReservedSSO_.../user@domain.com)
-  #      which does not consistently match ARN patterns in S3 bucket policies,
-  #      causing 403 errors during terraform destroy refresh.
-  #
-  #   2. Embedding data.aws_caller_identity.current.arn (which includes the session
-  #      name) into the policy JSON caused idempotency drift: the username suffix
-  #      changes each authentication, so Terraform detected a policy diff on every
-  #      second apply even though the intended policy was unchanged.
-  #
-  # Current approach (option_b_statements):
-  #   - DenyAccessOutsideVPCEndpoint: StringNotEquals aws:PrincipalAccount exempts
-  #     all account principals from the VPCE-only Deny.
-  #   - AllowManagementAccess: StringEquals aws:PrincipalAccount grants full s3:*
-  #     to account principals over HTTPS.
-  #   Both use data.aws_caller_identity.current.account_id (stable 12-digit account
-  #   number — never changes between applies or authentication sessions).
-  #
-  # Retained below if fine-grained per-ARN policy control is needed in the future.
-  management_principal_arn_patterns = distinct(compact(concat(
-    local.management_principal_arns,
-    [
-      for arn in local.management_principal_arns :
-      startswith(arn, "arn:aws:iam::") ? "${replace(replace(arn, ":iam::", ":sts::"), ":role/", ":assumed-role/")}/*" : null
-    ],
-    [
-      for arn in local.management_principal_arns :
-      startswith(arn, "arn:aws:sts::") ? "${join("/", slice(split("/", arn), 0, length(split("/", arn)) - 1))}/*" : null
-    ],
-    [
-      for arn in local.management_principal_arns :
-      startswith(arn, "arn:aws:sts::") ? replace(replace(join("/", slice(split("/", arn), 0, length(split("/", arn)) - 1)), ":sts::", ":iam::"), ":assumed-role/", ":role/") : null
-    ]
-  )))
-
   s3_vpce_wildcard_dns_candidates = [
     for entry in module.s3_interface_vpce.dns_entry : entry.dns_name if startswith(entry.dns_name, "*.")
   ]

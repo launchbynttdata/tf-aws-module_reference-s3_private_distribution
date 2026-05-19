@@ -51,7 +51,8 @@ resource "random_string" "disallowed_bucket_suffix" {
 # ---------------------------------------------------------------------------
 
 module "vpc" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc?ref=1.0.5"
+  source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc/aws"
+  version = "~> 1.0"
 
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -67,7 +68,8 @@ resource "aws_default_security_group" "default" {
 }
 
 module "private_subnets" {
-  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet?ref=1.0.5"
+  source   = "terraform.registry.launch.nttdata.com/module_primitive/subnet/aws"
+  version  = "~> 1.0"
   for_each = { for idx, cidr in var.private_subnet_cidrs : tostring(idx) => { cidr = cidr, az = local.azs[idx] } }
 
   vpc_id                  = module.vpc.vpc_id
@@ -83,7 +85,8 @@ module "private_subnets" {
 
 # S3 interface endpoint: accept HTTPS from Lambda subnets.
 module "s3_vpce_sg" {
-  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
+  source      = "terraform.registry.launch.nttdata.com/module_primitive/security_group/aws"
+  version     = "~> 0.7"
   name        = "${var.name_prefix}-s3-vpce-sg"
   description = "S3 interface endpoint - HTTPS inbound from Lambda subnets"
   vpc_id      = module.vpc.vpc_id
@@ -91,7 +94,8 @@ module "s3_vpce_sg" {
 }
 
 module "s3_vpce_sg_ingress" {
-  source   = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule?ref=0.1.4"
+  source   = "terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws"
+  version  = "~> 0.1.4"
   for_each = toset(var.private_subnet_cidrs)
 
   security_group_id = module.s3_vpce_sg.id
@@ -104,7 +108,8 @@ module "s3_vpce_sg_ingress" {
 
 # Lambda: outbound HTTPS only. No inbound (Lambda is invoked via AWS API, not network).
 module "lambda_sg" {
-  source      = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group?ref=0.7.3"
+  source      = "terraform.registry.launch.nttdata.com/module_primitive/security_group/aws"
+  version     = "~> 0.7"
   name        = "${var.name_prefix}-lambda-sg"
   description = "Lambda function - outbound HTTPS to S3 endpoint"
   vpc_id      = module.vpc.vpc_id
@@ -138,7 +143,6 @@ module "s3_privatelink" {
   vpce_ip_address_type = var.vpce_ip_address_type
   vpce_dns_options     = var.vpce_dns_options
 
-  management_principal_arns           = var.management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
   additional_vpce_allowed_bucket_arns = []
 

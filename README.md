@@ -279,10 +279,10 @@ Core private distribution bucket behavior is implemented, examples are executabl
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_artifacts_bucket"></a> [artifacts\_bucket](#module\_artifacts\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
-| <a name="module_logging_bucket"></a> [logging\_bucket](#module\_logging\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
-| <a name="module_s3_interface_vpce"></a> [s3\_interface\_vpce](#module\_s3\_interface\_vpce) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint | 0.1.0 |
-| <a name="module_replication_bucket"></a> [replication\_bucket](#module\_replication\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
+| <a name="module_artifacts_bucket"></a> [artifacts\_bucket](#module\_artifacts\_bucket) | terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws | ~> 1.1 |
+| <a name="module_logging_bucket"></a> [logging\_bucket](#module\_logging\_bucket) | terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws | ~> 1.1 |
+| <a name="module_s3_interface_vpce"></a> [s3\_interface\_vpce](#module\_s3\_interface\_vpce) | terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws | ~> 0.1 |
+| <a name="module_replication_bucket"></a> [replication\_bucket](#module\_replication\_bucket) | terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws | ~> 1.1 |
 
 ## Resources
 
@@ -310,7 +310,6 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS options for the interface endpoint. dns\_record\_ip\_type supports A/AAAA behavior (for example ipv4 or dualstack). | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix applied to all resources created by this module. | `string` | `"msix-s3"` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Optional additional S3 bucket ARNs allowed through the interface endpoint policy. The artifact bucket is always included. | `list(string)` | `[]` | no |
-| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Principal ARNs reserved for future fine-grained bucket policy use. Note: the current artifacts bucket policy uses aws:PrincipalAccount (account-level exemption) rather than per-principal ARN matching, so values here do not affect the active Deny or Allow conditions. Use pipeline\_role\_arns for write access that should be individually auditable in CloudTrail. | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail. | `list(string)` | `[]` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 artifact bucket. Defaults to true for data protection. | `bool` | `true` | no |
 | <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the S3 artifact bucket to expire old versions and clean up incomplete multipart uploads. | `bool` | `true` | no |

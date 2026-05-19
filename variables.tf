@@ -107,12 +107,6 @@ variable "additional_vpce_allowed_bucket_arns" {
 # Access policy — S3 bucket policy principals
 # ---------------------------------------------------------------------------
 
-variable "management_principal_arns" {
-  description = "Principal ARNs reserved for future fine-grained bucket policy use. Note: the current artifacts bucket policy uses aws:PrincipalAccount (account-level exemption) rather than per-principal ARN matching, so values here do not affect the active Deny or Allow conditions. Use pipeline_role_arns for write access that should be individually auditable in CloudTrail."
-  type        = list(string)
-  default     = []
-}
-
 variable "pipeline_role_arns" {
   description = "IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail."
   type        = list(string)

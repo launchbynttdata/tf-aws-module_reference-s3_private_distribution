@@ -192,18 +192,18 @@ terraform destroy -var-file=test.tfvars
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
-| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.7.1 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
+| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.8.0 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_vpc"></a> [vpc](#module\_vpc) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc | 1.0.5 |
-| <a name="module_private_subnets"></a> [private\_subnets](#module\_private\_subnets) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet | 1.0.5 |
-| <a name="module_s3_vpce_sg"></a> [s3\_vpce\_sg](#module\_s3\_vpce\_sg) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group | 0.7.3 |
-| <a name="module_s3_vpce_sg_ingress"></a> [s3\_vpce\_sg\_ingress](#module\_s3\_vpce\_sg\_ingress) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule | 0.1.4 |
-| <a name="module_lambda_sg"></a> [lambda\_sg](#module\_lambda\_sg) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group | 0.7.3 |
+| <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform.registry.launch.nttdata.com/module_primitive/vpc/aws | ~> 1.0 |
+| <a name="module_private_subnets"></a> [private\_subnets](#module\_private\_subnets) | terraform.registry.launch.nttdata.com/module_primitive/subnet/aws | ~> 1.0 |
+| <a name="module_s3_vpce_sg"></a> [s3\_vpce\_sg](#module\_s3\_vpce\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
+| <a name="module_s3_vpce_sg_ingress"></a> [s3\_vpce\_sg\_ingress](#module\_s3\_vpce\_sg\_ingress) | terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws | ~> 0.1.4 |
+| <a name="module_lambda_sg"></a> [lambda\_sg](#module\_lambda\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
 | <a name="module_s3_privatelink"></a> [s3\_privatelink](#module\_s3\_privatelink) | ../.. | n/a |
 
 ## Resources
@@ -238,7 +238,6 @@ terraform destroy -var-file=test.tfvars
 | <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC. | `string` | `"10.0.0.0/16"` | no |
 | <a name="input_private_subnet_cidrs"></a> [private\_subnet\_cidrs](#input\_private\_subnet\_cidrs) | CIDR blocks for private subnets (one per AZ). | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24"<br/>]</pre> | no |
 | <a name="input_lambda_runtime"></a> [lambda\_runtime](#input\_lambda\_runtime) | Lambda runtime for the validation function. | `string` | `"python3.12"` | no |
-| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | ARNs of principals allowed to manage the S3 bucket. | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | ARNs of pipeline roles allowed to access the bucket. | `list(string)` | `[]` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 bucket. | `bool` | `false` | no |
 | <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the bucket. | `bool` | `true` | no |

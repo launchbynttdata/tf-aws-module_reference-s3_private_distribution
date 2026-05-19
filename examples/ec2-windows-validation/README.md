@@ -66,21 +66,21 @@ interface endpoints.
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_vpc"></a> [vpc](#module\_vpc) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc | 1.0.5 |
-| <a name="module_app_private_subnets"></a> [app\_private\_subnets](#module\_app\_private\_subnets) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet | 1.0.5 |
-| <a name="module_client_subnet"></a> [client\_subnet](#module\_client\_subnet) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-subnet | 1.0.5 |
-| <a name="module_vpce_sg"></a> [vpce\_sg](#module\_vpce\_sg) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group | 0.7.3 |
-| <a name="module_vpce_sg_ingress"></a> [vpce\_sg\_ingress](#module\_vpce\_sg\_ingress) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule | 0.1.4 |
-| <a name="module_windows_client_sg"></a> [windows\_client\_sg](#module\_windows\_client\_sg) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group | 0.7.3 |
-| <a name="module_windows_client_sg_rdp_ingress"></a> [windows\_client\_sg\_rdp\_ingress](#module\_windows\_client\_sg\_rdp\_ingress) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule | 0.1.4 |
-| <a name="module_ssm_endpoints_sg"></a> [ssm\_endpoints\_sg](#module\_ssm\_endpoints\_sg) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-security_group | 0.7.3 |
-| <a name="module_ssm_endpoints_sg_ingress"></a> [ssm\_endpoints\_sg\_ingress](#module\_ssm\_endpoints\_sg\_ingress) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_security_group_ingress_rule | 0.1.4 |
+| <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform.registry.launch.nttdata.com/module_primitive/vpc/aws | ~> 1.0 |
+| <a name="module_app_private_subnets"></a> [app\_private\_subnets](#module\_app\_private\_subnets) | terraform.registry.launch.nttdata.com/module_primitive/subnet/aws | ~> 1.0 |
+| <a name="module_client_subnet"></a> [client\_subnet](#module\_client\_subnet) | terraform.registry.launch.nttdata.com/module_primitive/subnet/aws | ~> 1.0 |
+| <a name="module_vpce_sg"></a> [vpce\_sg](#module\_vpce\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
+| <a name="module_vpce_sg_ingress"></a> [vpce\_sg\_ingress](#module\_vpce\_sg\_ingress) | terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws | ~> 0.1 |
+| <a name="module_windows_client_sg"></a> [windows\_client\_sg](#module\_windows\_client\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
+| <a name="module_windows_client_sg_rdp_ingress"></a> [windows\_client\_sg\_rdp\_ingress](#module\_windows\_client\_sg\_rdp\_ingress) | terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws | ~> 0.1 |
+| <a name="module_ssm_endpoints_sg"></a> [ssm\_endpoints\_sg](#module\_ssm\_endpoints\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
+| <a name="module_ssm_endpoints_sg_ingress"></a> [ssm\_endpoints\_sg\_ingress](#module\_ssm\_endpoints\_sg\_ingress) | terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws | ~> 0.1 |
 | <a name="module_s3_privatelink"></a> [s3\_privatelink](#module\_s3\_privatelink) | ../.. | n/a |
 
 ## Resources
@@ -119,7 +119,6 @@ interface endpoints.
 | <a name="input_windows_instance_type"></a> [windows\_instance\_type](#input\_windows\_instance\_type) | EC2 instance type for the Windows client emulator. | `string` | `"t3.large"` | no |
 | <a name="input_windows_key_name"></a> [windows\_key\_name](#input\_windows\_key\_name) | Optional EC2 key pair for the Windows instance. Leave null for SSM-only access. | `string` | `null` | no |
 | <a name="input_admin_ingress_cidrs"></a> [admin\_ingress\_cidrs](#input\_admin\_ingress\_cidrs) | Optional CIDR blocks for RDP (3389) ingress to the Windows emulator. Empty list keeps RDP closed. | `list(string)` | `[]` | no |
-| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Principal ARNs exempted from the VPCE-only read restriction (passed to collection module). | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access to the artifact bucket (passed to collection module). | `list(string)` | `[]` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Additional S3 bucket ARNs allowed through the endpoint policy (passed to collection module). | `list(string)` | `[]` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Pass-through: enable versioning on the collection module artifact bucket. | `bool` | `true` | no |
