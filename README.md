@@ -22,6 +22,39 @@ The intended standalone repository identity is `tf-aws-module_collection-private
   - tests/post_deploy_functional_readonly (Go/Terratest non-destructive verification)
   - tests/testimpl (shared provider API validation logic)
 
+## Artifacts Bucket Policy Design
+
+The artifacts bucket policy enforces private access through a layered, account-aware model. Four statements are applied in order of evaluation:
+
+### Statement 1 — `DenyInsecureTransport`
+Denies all S3 actions unconditionally unless `aws:SecureTransport = true`. Applies to every principal and request type with no exceptions.
+
+### Statement 2 — `DenyAccessOutsideVPCEndpoint`
+Denies key S3 read/write actions (`GetObject`, `ListBucket`, `PutObject`, `DeleteObject`, etc.) **unless** the request arrives through the managed S3 interface VPC endpoint (`aws:SourceVpce`) **or** the requesting principal belongs to this AWS account (`aws:PrincipalAccount`). Account principals bypass the Deny entirely — this allows Terraform, CI/CD pipelines, and console operators to access the bucket without routing through the endpoint.
+
+> **Why `aws:PrincipalAccount` instead of `aws:PrincipalArn`?**
+>
+> ARN-based matching (`ArnLike: aws:PrincipalArn`) is unreliable for IAM Identity Center managed roles (`AWSReservedSSO_*`). The IAM role ARN (`arn:aws:iam::ACCOUNT:role/AWSReservedSSO_...`) does not match the STS session ARN that Identity Center generates at login (`arn:aws:sts::ACCOUNT:assumed-role/AWSReservedSSO_.../username@domain.com`), causing consistent 403 errors on operations like `terraform destroy`.
+>
+> Using `aws:PrincipalAccount` with the stable 12-digit account ID avoids this entirely — the condition matches any principal in the account regardless of how they authenticated.
+>
+> This also resolved an idempotency problem: the previous approach embedded `data.aws_caller_identity.current.arn` (which includes the SSO session username) into the policy JSON. Because the session name changes per-authentication, Terraform detected a diff on every second apply even though the intended policy was unchanged.
+
+### Statement 3 — `AllowClientReadViaVPCEndpoint`
+Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpoint and transport is secure. This is the primary distribution read path for artifact consumers inside allowed subnets.
+
+> **Why not `aws:SourceIp` conditions?**
+>
+> S3 interface endpoints mask the client's true source IP with the endpoint ENI's private IP. `aws:SourceIp` conditions in bucket policies are unreliable over PrivateLink. Subnet-level network controls (security groups, route tables, NACLs) enforce the actual network boundary — the bucket policy trusts the endpoint identity, not the source IP.
+
+### Statement 4 — `AllowManagementAccess`
+Grants full `s3:*` to any principal in this AWS account (`aws:PrincipalAccount`), provided HTTPS is used. Covers Terraform, CI/CD pipelines, and console operators without requiring them to traverse the VPC endpoint path.
+
+### Pipeline Write Statements (dynamic)
+If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Named statements make each pipeline principal's write activity individually traceable in CloudTrail.
+
+---
+
 ## Getting Started
 
 Required files and setup:
@@ -34,9 +67,12 @@ Required files and setup:
 
 - `make test` executes Terraform example planning (`tfmodule/plan`) and then runs functional Go post-deploy tests via `go/test`.
 - Post-deploy tests invoke a Lambda function deployed in private subnets to validate S3 endpoint access via network-path-only conditions (no IAM credentials).
+- Test region defaults are pinned for quota stability: primary deployment in `us-east-2`, replication destination in `us-west-1`.
 - `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~15-20 minutes (most time is S3 bucket cleanup).
 - `make go/readonly_test` runs readonly/non-destructive Go verification against existing infrastructure.
-- `tests/terraform/scaffold.tftest.hcl` exists as a Terraform test scaffold and is not currently wired into `make test`.
+- `tests/terraform/scaffold.tftest.hcl` runs `terraform test` plan-only profile checks. It is not wired into `make test` and does not require deployed infrastructure.
+- **Post-destroy verification**: After `terraform destroy`, the Go test suite automatically verifies that the artifacts bucket, disallowed bucket, and Lambda function are actually absent in AWS (`tests/testimpl/test_impl.go: verifyResourcesDestroyed` via `t.Cleanup`).
+- **Region drift caution**: The dev container sets `AWS_REGION=us-west-2` by default. The Makefile defaults to `us-east-2`, but the shell env var takes precedence. Always invoke `make test AWS_REGION=us-east-2` explicitly. A precondition guard in `examples/complete/main.tf` will catch provider/variable region mismatches at plan time and abort with a clear error.
 
 ## Test Matrix (Tfvars Profiles)
 
@@ -95,10 +131,13 @@ If continuing this work later, prioritize the following in order:
   - Replace rule-wide waivers with resource-specific waivers if supported by policy tooling.
   - Keep `FG_R00354` and `FG_R00355` deferred unless CloudTrail ownership shifts into this module.
 
-2. Add post-apply verification for waived controls:
-  - Validate HTTPS enforcement (`DenyInsecureTransport`) on all managed bucket policies.
-  - Validate lifecycle, access logging, and replication state with AWS API checks in tests.
-  - Treat this as compensating evidence while plan-time waivers remain.
+2. Expand runtime verification for waived controls:
+  - ✅ **Done**: Post-destroy verification implemented — `verifyResourcesDestroyed` in `tests/testimpl/test_impl.go` confirms the artifacts bucket, disallowed bucket, and Lambda function are absent after `terraform destroy`.
+  - Still remaining (TODOs marked in `tests/testimpl/test_impl.go`):
+    - Validate HTTPS enforcement (`DenyInsecureTransport`) is present on all managed bucket policies via AWS API check.
+    - Validate logging wiring: `GetBucketLogging` should confirm target bucket matches `logging_bucket_name` output when `enable_logging=true`.
+    - Validate replication presence: `GetBucketReplication` should confirm destination ARN matches `replication_bucket_arn` when `enable_replication=true`.
+  - Treat completed and remaining items as compensating evidence while plan-time waivers remain.
 
 3. Re-test waiver removability after tooling changes:
   - Re-run `make tfmodule/plan` whenever Terraform/policy tooling is upgraded, and re-run your policy check workflow lane in CI.
@@ -266,9 +305,12 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | <a name="input_vpce_subnet_ids"></a> [vpce\_subnet\_ids](#input\_vpce\_subnet\_ids) | List of subnet IDs in which to place the endpoint network interfaces. Must be private subnets reachable by artifact consumers. | `list(string)` | n/a | yes |
 | <a name="input_vpce_security_group_ids"></a> [vpce\_security\_group\_ids](#input\_vpce\_security\_group\_ids) | Security group IDs to associate with the endpoint ENIs. Must permit inbound HTTPS (443) from consumer CIDRs. | `list(string)` | n/a | yes |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources are deployed (e.g. us-west-1). Used to construct the S3 endpoint service name. | `string` | n/a | yes |
+| <a name="input_vpce_auto_accept"></a> [vpce\_auto\_accept](#input\_vpce\_auto\_accept) | Whether to auto-accept the endpoint request. Typically false unless using a same-account endpoint service pattern. | `bool` | `false` | no |
+| <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint. Valid values: ipv4, dualstack, ipv6. Null uses AWS service default. | `string` | `null` | no |
+| <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS options for the interface endpoint. dns\_record\_ip\_type supports A/AAAA behavior (for example ipv4 or dualstack). | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix applied to all resources created by this module. | `string` | `"msix-s3"` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Optional additional S3 bucket ARNs allowed through the interface endpoint policy. The artifact bucket is always included. | `list(string)` | `[]` | no |
-| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Additional principal ARNs (IAM roles, users) to exempt from the VPCE-only read restriction. The caller identity is always included. Accepts both arn:aws:iam:: and arn:aws:sts:: formats; STS assumed-role wildcard patterns are generated automatically. | `list(string)` | `[]` | no |
+| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Principal ARNs reserved for future fine-grained bucket policy use. Note: the current artifacts bucket policy uses aws:PrincipalAccount (account-level exemption) rather than per-principal ARN matching, so values here do not affect the active Deny or Allow conditions. Use pipeline\_role\_arns for write access that should be individually auditable in CloudTrail. | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail. | `list(string)` | `[]` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 artifact bucket. Defaults to true for data protection. | `bool` | `true` | no |
 | <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the S3 artifact bucket to expire old versions and clean up incomplete multipart uploads. | `bool` | `true` | no |

@@ -41,12 +41,25 @@ module "s3_privatelink" {
   vpce_subnet_ids         = [for s in aws_subnet.app_private : s.id]
   vpce_security_group_ids = [aws_security_group.vpce.id]
 
-  aws_region  = var.aws_region
-  name_prefix = var.name_prefix
+  aws_region          = var.aws_region
+  name_prefix         = var.name_prefix
+  vpce_auto_accept    = var.vpce_auto_accept
+  vpce_ip_address_type = var.vpce_ip_address_type
+  vpce_dns_options    = var.vpce_dns_options
 
   management_principal_arns           = var.management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
   additional_vpce_allowed_bucket_arns = var.additional_vpce_allowed_bucket_arns
+
+  enable_versioning                            = var.enable_versioning
+  enable_lifecycle                             = var.enable_lifecycle
+  lifecycle_noncurrent_version_expiration_days = var.lifecycle_noncurrent_version_expiration_days
+  lifecycle_incomplete_multipart_upload_days   = var.lifecycle_incomplete_multipart_upload_days
+  enable_logging                               = var.enable_logging
+  logging_target_bucket                        = var.logging_target_bucket
+  logging_prefix                               = var.logging_prefix
+  enable_replication                           = var.enable_replication
+  replication_destination_region               = var.replication_destination_region
 
   tags = var.tags
 }
@@ -57,14 +70,26 @@ module "s3_privatelink" {
 **Primary path** (automated end-to-end via Go/Terratest):
 
 ```bash
-make test
+# Always pass AWS_REGION explicitly.
+# The dev container default (us-west-2) overrides the Makefile's built-in
+# default (us-east-2), and a wrong region deploys infrastructure out of
+# the expected account quota and test setup.
+make test AWS_REGION=us-east-2
 ```
 
+> **Region precondition**: the example's `data.aws_availability_zones.available` block
+> includes a `lifecycle { precondition }` that aborts `terraform plan` if the active AWS
+> provider region does not match `var.aws_region` from the tfvars file. This guard
+> catches accidental region drift early rather than mid-apply.
+
 This command:
-1. Plans the Terraform example
+1. Plans the Terraform example (the precondition verifies provider region == var.aws_region)
 2. Deploys the Lambda function and S3 infrastructure (~2-3 min)
 3. Invokes the Lambda function to validate network-path access (~5 seconds)
 4. Destroys all infrastructure (~10-15 min; S3 cleanup is the bottleneck)
+5. After destroy, automatically verifies the artifacts bucket, disallowed bucket, and Lambda function are absent in AWS (`verifyResourcesDestroyed` via `t.Cleanup` in `tests/testimpl/test_impl.go`)
+
+Region defaults used by the test profile are `aws_region = us-east-2` and `replication_destination_region = us-west-1`.
 
 **Expected duration**: ~15-20 minutes total (most time is infrastructure teardown, not validation)
 
@@ -199,12 +224,16 @@ terraform destroy -var-file=test.tfvars
 | [archive_file.lambda_package](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
 | [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
 | [aws_iam_policy_document.lambda_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for resource deployment. | `string` | `"us-east-1"` | no |
+| <a name="input_vpce_auto_accept"></a> [vpce\_auto\_accept](#input\_vpce\_auto\_accept) | Whether to auto-accept the interface endpoint request. | `bool` | `false` | no |
+| <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default. | `string` | `null` | no |
+| <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS behavior for the interface endpoint. | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for resource names. | `string` | `"launch-s3probe"` | no |
 | <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC. | `string` | `"10.0.0.0/16"` | no |
 | <a name="input_private_subnet_cidrs"></a> [private\_subnet\_cidrs](#input\_private\_subnet\_cidrs) | CIDR blocks for private subnets (one per AZ). | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24"<br/>]</pre> | no |

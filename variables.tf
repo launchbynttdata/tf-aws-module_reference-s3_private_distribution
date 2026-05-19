@@ -54,6 +54,36 @@ variable "aws_region" {
 }
 
 # ---------------------------------------------------------------------------
+# Optional — endpoint behavior tuning (pass-through to primitive module)
+# ---------------------------------------------------------------------------
+
+variable "vpce_auto_accept" {
+  description = "Whether to auto-accept the endpoint request. Typically false unless using a same-account endpoint service pattern."
+  type        = bool
+  default     = false
+}
+
+variable "vpce_ip_address_type" {
+  description = "IP address type for the interface endpoint. Valid values: ipv4, dualstack, ipv6. Null uses AWS service default."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.vpce_ip_address_type == null ? true : contains(["ipv4", "dualstack", "ipv6"], var.vpce_ip_address_type)
+    error_message = "vpce_ip_address_type must be one of: ipv4, dualstack, ipv6, or null."
+  }
+}
+
+variable "vpce_dns_options" {
+  description = "Optional DNS options for the interface endpoint. dns_record_ip_type supports A/AAAA behavior (for example ipv4 or dualstack)."
+  type = object({
+    dns_record_ip_type                             = optional(string)
+    private_dns_only_for_inbound_resolver_endpoint = optional(bool)
+  })
+  default = null
+}
+
+# ---------------------------------------------------------------------------
 # Naming
 # ---------------------------------------------------------------------------
 
@@ -78,7 +108,7 @@ variable "additional_vpce_allowed_bucket_arns" {
 # ---------------------------------------------------------------------------
 
 variable "management_principal_arns" {
-  description = "Additional principal ARNs (IAM roles, users) to exempt from the VPCE-only read restriction. The caller identity is always included. Accepts both arn:aws:iam:: and arn:aws:sts:: formats; STS assumed-role wildcard patterns are generated automatically."
+  description = "Principal ARNs reserved for future fine-grained bucket policy use. Note: the current artifacts bucket policy uses aws:PrincipalAccount (account-level exemption) rather than per-principal ARN matching, so values here do not affect the active Deny or Allow conditions. Use pipeline_role_arns for write access that should be individually auditable in CloudTrail."
   type        = list(string)
   default     = []
 }

@@ -4,6 +4,27 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "vpce_auto_accept" {
+  description = "Whether to auto-accept the interface endpoint request."
+  type        = bool
+  default     = false
+}
+
+variable "vpce_ip_address_type" {
+  description = "IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default."
+  type        = string
+  default     = null
+}
+
+variable "vpce_dns_options" {
+  description = "Optional DNS behavior for the interface endpoint."
+  type = object({
+    dns_record_ip_type                             = optional(string)
+    private_dns_only_for_inbound_resolver_endpoint = optional(bool)
+  })
+  default = null
+}
+
 variable "name_prefix" {
   description = "Prefix for resource names."
   type        = string

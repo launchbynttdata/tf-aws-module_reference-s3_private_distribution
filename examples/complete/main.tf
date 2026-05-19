@@ -16,8 +16,17 @@
 #   - Lambda returns JSON with 200/403/403 validation results (~5 sec total)
 # ---------------------------------------------------------------------------
 
+data "aws_region" "current" {}
+
 data "aws_availability_zones" "available" {
   state = "available"
+
+  lifecycle {
+    precondition {
+      condition     = data.aws_region.current.name == var.aws_region
+      error_message = "Active AWS provider region '${data.aws_region.current.name}' does not match var.aws_region '${var.aws_region}'. Configure your AWS provider (or set AWS_DEFAULT_REGION) to match var.aws_region before running Terraform."
+    }
+  }
 }
 
 locals {
@@ -123,8 +132,11 @@ module "s3_privatelink" {
   vpce_subnet_ids         = [for s in module.private_subnets : s.subnet_id]
   vpce_security_group_ids = [module.s3_vpce_sg.id]
 
-  aws_region  = var.aws_region
-  name_prefix = var.name_prefix
+  aws_region           = var.aws_region
+  name_prefix          = var.name_prefix
+  vpce_auto_accept     = var.vpce_auto_accept
+  vpce_ip_address_type = var.vpce_ip_address_type
+  vpce_dns_options     = var.vpce_dns_options
 
   management_principal_arns           = var.management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns

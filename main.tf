@@ -104,6 +104,9 @@ module "s3_interface_vpce" {
   service_name        = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = false
+  auto_accept         = var.vpce_auto_accept
+  ip_address_type     = var.vpce_ip_address_type
+  dns_options         = var.vpce_dns_options
   subnet_ids          = var.vpce_subnet_ids
   security_group_ids  = var.vpce_security_group_ids
   policy              = local.vpce_endpoint_policy_json
@@ -240,33 +243,45 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
 }
 
 locals {
+  # management_principal_arns aggregates the caller identity, any pipeline role ARNs,
+  # and any additional principals passed via var.management_principal_arns.
+  # NOTE: this local is not currently referenced by option_b_statements, which now uses
+  # aws:PrincipalAccount for account-level exemption (see management_principal_arn_patterns
+  # comment below for context). It is retained if per-ARN policy control is needed later.
   management_principal_arns = distinct(concat(
     [data.aws_caller_identity.current.arn],
     var.pipeline_role_arns,
     var.management_principal_arns
   ))
 
-  # Management principal ARN patterns for S3 bucket policy conditions.
+  # Management principal ARN patterns — preserved for reference, NOT currently active
+  # in option_b_statements.
   #
-  # Problem:
-  #   - IAM role ARNs have format: arn:aws:iam::ACCOUNT:role/ROLE_NAME
-  #   - STS assumed-role session ARNs have format: arn:aws:sts::ACCOUNT:assumed-role/ROLE_NAME/SESSION_NAME
-  #   - SSO logins (via Okta, Azure AD, etc.) generate STS assumed-role ARNs, not IAM role ARNs
-  #   - Exact ARN matching (ArnEquals) fails to match sessions of the same role
+  # These patterns were originally used in ArnLike/ArnNotLike conditions for
+  # aws:PrincipalArn in DenyAccessOutsideVPCEndpoint and AllowManagementAccess.
   #
-  # Solution:
-  #   - Use ArnLike wildcard patterns that match both formats
-  #   - Convert IAM role ARNs to STS assumed-role patterns with /* suffix
-  #   - Preserve STS ARNs and add /* suffix to match any session name
+  # Why they were superseded by aws:PrincipalAccount:
+  #   1. aws:PrincipalArn is unreliable for AWSReservedSSO_* roles managed by
+  #      IAM Identity Center. The STS session ARN generated at SSO login includes
+  #      a user-specific session name
+  #        (arn:aws:sts::ACCOUNT:assumed-role/AWSReservedSSO_.../user@domain.com)
+  #      which does not consistently match ARN patterns in S3 bucket policies,
+  #      causing 403 errors during terraform destroy refresh.
   #
-  # Result:
-  #   - arn:aws:iam::123456789012:role/admin-role
-  #   → arn:aws:sts::123456789012:assumed-role/admin-role/*
+  #   2. Embedding data.aws_caller_identity.current.arn (which includes the session
+  #      name) into the policy JSON caused idempotency drift: the username suffix
+  #      changes each authentication, so Terraform detected a policy diff on every
+  #      second apply even though the intended policy was unchanged.
   #
-  #   - arn:aws:sts::123456789012:assumed-role/admin-role/user@domain.com
-  #   → arn:aws:sts::123456789012:assumed-role/admin-role/*
+  # Current approach (option_b_statements):
+  #   - DenyAccessOutsideVPCEndpoint: StringNotEquals aws:PrincipalAccount exempts
+  #     all account principals from the VPCE-only Deny.
+  #   - AllowManagementAccess: StringEquals aws:PrincipalAccount grants full s3:*
+  #     to account principals over HTTPS.
+  #   Both use data.aws_caller_identity.current.account_id (stable 12-digit account
+  #   number — never changes between applies or authentication sessions).
   #
-  # Policy conditions using ArnLike will match all principals with these patterns.
+  # Retained below if fine-grained per-ARN policy control is needed in the future.
   management_principal_arn_patterns = distinct(compact(concat(
     local.management_principal_arns,
     [
@@ -364,10 +379,9 @@ locals {
   #   1. DenyAccessOutsideVPCEndpoint
   #      - Denies read (GetObject, ListBucket) and write (PutObject, DeleteObject,
   #        DeleteObjectVersion) actions UNLESS source is the interface endpoint
-  #      - EXCEPT for principals matching management_principal_arn_patterns (IAM role
-  #        and STS assumed-role patterns for management/pipeline principals)
-  #      - Uses ArnNotLike on aws:PrincipalArn to restrict only the specific
-  #        management principals — not all in-account principals
+  #      - EXCEPT for principals authenticated in this AWS account (aws:PrincipalAccount)
+  #      - Account-scoped exception allows Terraform, CI/CD, and console access without
+  #        depending on session-specific ARN patterns (which drift between applies)
   #
   #   2. AllowClientReadViaVPCEndpoint
   #      - Permits GetObject when source is the interface endpoint
@@ -375,9 +389,10 @@ locals {
   #      - Clients outside this endpoint are caught by the Deny statement above
   #
   #   3. AllowManagementAccess
-  #      - Explicitly allows full access (Get, List, Put, Delete) to management principals
-  #      - Not restricted to endpoint — enables Terraform CLI, AWS console, pipeline operations
-  #      - Matches both IAM role ARNs and STS assumed-role session ARNs via ArnLike
+  #      - Explicitly allows full access to any authenticated principal in this AWS account
+  #      - Not restricted to endpoint — enables Terraform CLI, AWS console, CI/CD pipelines
+  #      - Uses aws:PrincipalAccount (stable account ID) rather than session-specific ARN
+  #        patterns, which avoids idempotency drift and resolves 403s during destroy refresh
   #
   option_b_statements = [
     for statement in [
@@ -401,10 +416,8 @@ locals {
         ]
         Condition = {
           StringNotEquals = {
-            "aws:SourceVpce" = module.s3_interface_vpce.id
-          }
-          ArnNotLike = {
-            "aws:PrincipalArn" = local.management_principal_arn_patterns
+            "aws:SourceVpce"       = module.s3_interface_vpce.id
+            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
           }
         }
       },
@@ -434,8 +447,8 @@ locals {
           "${module.artifacts_bucket.arn}/*"
         ]
         Condition = {
-          ArnLike = {
-            "aws:PrincipalArn" = local.management_principal_arn_patterns
+          StringEquals = {
+            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
           }
           Bool = {
             "aws:SecureTransport" = "true"

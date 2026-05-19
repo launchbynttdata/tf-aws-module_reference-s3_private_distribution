@@ -1,5 +1,6 @@
-aws_region  = "us-east-2"
-name_prefix = "msix-s3-bucket-complete"
+aws_region                     = "us-east-2"
+replication_destination_region = "us-west-1"
+name_prefix                    = "msix-s3-bucket-complete"
 
 # ---------------------------------------------------------------------------
 # Access Control
