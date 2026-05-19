@@ -273,7 +273,7 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
 
 ## Modules
 
@@ -281,7 +281,7 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | ---- | ------ | ------- |
 | <a name="module_artifacts_bucket"></a> [artifacts\_bucket](#module\_artifacts\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
 | <a name="module_logging_bucket"></a> [logging\_bucket](#module\_logging\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
-| <a name="module_s3_interface_vpce"></a> [s3\_interface\_vpce](#module\_s3\_interface\_vpce) | ../tf-aws-module_primitive-vpc_endpoint | n/a |
+| <a name="module_s3_interface_vpce"></a> [s3\_interface\_vpce](#module\_s3\_interface\_vpce) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint | 0.1.0 |
 | <a name="module_replication_bucket"></a> [replication\_bucket](#module\_replication\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
 
 ## Resources

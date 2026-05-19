@@ -97,8 +97,9 @@ resource "aws_s3_bucket_logging" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "s3_interface_vpce" {
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=v1.0.0"
-  source = "../tf-aws-module_primitive-vpc_endpoint"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=0.1.0"
+  # source = "terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws"
+  # version = "~> 0.1"
 
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.s3"
