@@ -3,22 +3,30 @@ replication_destination_region = "us-west-1"
 name_prefix                    = "msix-s3-bucket-complete"
 
 # ---------------------------------------------------------------------------
+# Secure baseline — explicit values for all feature flags.
+#
+# The example module defaults several flags to false for developer convenience
+# (no accidental replication bucket creation, etc.). These overrides restore
+# the full-feature secure posture that the README describes as the baseline.
+# ---------------------------------------------------------------------------
+enable_versioning  = true
+enable_lifecycle   = true
+enable_logging     = true
+enable_replication = true
+
+# ---------------------------------------------------------------------------
 # Access Control
 #
 # The identity running `terraform apply` (CI role, SSO session, etc.) is
-# automatically included as a management principal and exempted from the
-# VPC endpoint restriction — no entry needed here for the deployer itself.
+# automatically exempted from the VPC endpoint restriction via the
+# aws:PrincipalAccount condition in the bucket policy — no variable entry
+# is needed for the deployer itself.
 #
-# For real deployments, add ARNs for any principals that need direct S3
-# access outside the VPC endpoint path (console users, break-glass roles,
-# audit tooling, etc.).  Pipeline roles that write artifacts to the bucket
-# should go in pipeline_role_arns instead.
+# For pipeline roles that need explicit CloudTrail-visible write access,
+# add them to pipeline_role_arns. All other in-account principals already
+# have management access via the aws:PrincipalAccount bypass.
 #
 # Examples:
-#   management_principal_arns = [
-#     "arn:aws:iam::123456789012:role/platform-admin",
-#     "arn:aws:iam::123456789012:role/s3-console-access",
-#   ]
 #   pipeline_role_arns = [
 #     "arn:aws:iam::123456789012:role/msix-release-pipeline",
 #   ]

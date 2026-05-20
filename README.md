@@ -12,7 +12,8 @@ The intended standalone repository identity is `tf-aws-module_collection-private
 
 ## Structure
 
-- Root package files: main.tf, variables.tf, outputs.tf, versions.tf, provider.tf, locals.tf
+- Root package files: main.tf, variables.tf, outputs.tf, versions.tf, locals.tf
+  - Note: the replication provider alias is defined directly in `main.tf`; there is no separate `provider.tf` in the root module
 - Nested examples:
   - examples/simple
   - examples/complete
@@ -53,6 +54,30 @@ Grants full `s3:*` to any principal in this AWS account (`aws:PrincipalAccount`)
 ### Pipeline Write Statements (dynamic)
 If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Named statements make each pipeline principal's write activity individually traceable in CloudTrail.
 
+### Accepted trade-off — broad same-account bypass
+
+> **This is a documented, intentional design decision — not an unresolved security gap.**
+>
+> Both `DenyAccessOutsideVPCEndpoint` and `AllowManagementAccess` use `aws:PrincipalAccount` to
+> exempt in-account principals from the VPC endpoint requirement. This means any IAM principal in
+> the same AWS account with identity-based S3 permissions can access the bucket without going
+> through the interface endpoint.
+>
+> **Why this is acceptable here:**
+> - The primary threat model is cross-account or public access, both of which are blocked.
+> - In-account principals are already subject to IAM permission boundaries and SCPs enforced at the
+>   organization level — the bucket policy is not the sole layer of defence.
+> - Restricting to specific ARNs (`aws:PrincipalArn`) breaks IAM Identity Center (SSO) sessions
+>   because the assumed-role session ARN differs from the IAM role ARN, causing 403 failures for
+>   every Terraform operator and CI/CD pipeline that uses SSO-vended credentials.
+> - `pipeline_role_arns` provides explicit per-pipeline write grants for teams that want
+>   per-principal CloudTrail visibility without relying on the broad account exemption.
+>
+> Teams that want to narrow this to specific principals should populate `pipeline_role_arns` and
+> replace the `aws:PrincipalAccount` conditions with an explicit ARN allowlist — accepting that SSO
+> session ARN drift requires a session-name wildcard (`arn:aws:sts::ACCOUNT:assumed-role/ROLE/*`)
+> rather than a stable IAM role ARN.
+
 ---
 
 ## Getting Started
@@ -68,7 +93,7 @@ Required files and setup:
 - `make test` executes Terraform example planning (`tfmodule/plan`) and then runs functional Go post-deploy tests via `go/test`.
 - Post-deploy tests invoke a Lambda function deployed in private subnets to validate S3 endpoint access via network-path-only conditions (no IAM credentials).
 - Test region defaults are pinned for quota stability: primary deployment in `us-east-2`, replication destination in `us-west-1`.
-- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~15-20 minutes (most time is S3 bucket cleanup).
+- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~35–45 minutes. The test harness runs two sequential `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`), which accounts for the majority of the time beyond a single apply+destroy. See `.idea/deployment-timing-analysis.md` for a full phase-by-phase breakdown.
 - `make go/readonly_test` runs readonly/non-destructive Go verification against existing infrastructure.
 - `tests/terraform/scaffold.tftest.hcl` runs `terraform test` plan-only profile checks. It is not wired into `make test` and does not require deployed infrastructure.
 - **Post-destroy verification**: After `terraform destroy`, the Go test suite automatically verifies that the artifacts bucket, disallowed bucket, and Lambda function are actually absent in AWS (`tests/testimpl/test_impl.go: verifyResourcesDestroyed` via `t.Cleanup`).
@@ -96,13 +121,13 @@ These are useful for behavior checks, but they relax controls that map to curren
 | `test.replication-disabled.tfvars` | `enable_replication=false` | `FG_R00275` | Keep out of default CI; run only in exploratory test lane if needed |
 | `test.lifecycle-disabled.tfvars` or `test.versioning-disabled.tfvars` | `enable_lifecycle=false` and/or `enable_versioning=false` | `FG_R00101` | Keep out of default CI; use only when intentionally validating degraded mode |
 
-Policy context: waiver files in `components/policy/waivers/` indicate these controls are implemented but currently waived at plan-time interpretation (`FG_R00101`, `FG_R00274`, `FG_R00275`).
+Policy context: waiver rationale for `FG_R00101`, `FG_R00274`, and `FG_R00275` is documented in inline comments in [main.tf](main.tf) — these controls are implemented but currently waived at plan-time interpretation due to the limitations described in the Regula Waiver section above.
 
 ## Compliance and Observability Features
 
 ## Regula Waiver Rationale (Known Plan-Time Limitations)
 
-This module keeps a small set of Regula waivers in [components/policy/waivers](components/policy/waivers) for two reasons:
+This module documents a small set of Regula waiver rationales below for two reasons:
 
 1. Plan-time visibility limits for some S3 checks:
   - `FG_R00100` (HTTPS-only policy)
@@ -119,8 +144,7 @@ This module keeps a small set of Regula waivers in [components/policy/waivers](c
   CloudTrail object-level data events are expected to be managed at the shared/account or organization logging layer, not exclusively inside this module.
 
 Guidance for sync/upstream review:
-- Keep waiver rationale comments in each waiver file current.
-- Keep inline comments near S3 policy resources in [main.tf](main.tf) and [examples/complete/main.tf](examples/complete/main.tf) aligned with waiver reasoning.
+- Keep waiver rationale documented in inline comments near the relevant S3 policy resources in [main.tf](main.tf) and [examples/complete/main.tf](examples/complete/main.tf).
 - Re-evaluate waivers whenever Regula policy behavior or module architecture changes.
 
 ### Suggested Next Steps (Handoff)
@@ -144,7 +168,7 @@ If continuing this work later, prioritize the following in order:
   - Attempt removing `FG_R00100`, `FG_R00101`, `FG_R00274`, and `FG_R00275` again after upgrades.
 
 4. Keep docs and code comments synchronized:
-  - If waiver intent changes, update [components/policy/waivers](components/policy/waivers), [main.tf](main.tf), [examples/complete/main.tf](examples/complete/main.tf), and this README in the same PR.
+  - If waiver intent changes, update the inline comments in [main.tf](main.tf), [examples/complete/main.tf](examples/complete/main.tf), and this README in the same PR.
 
 ### S3 Access Logging
 
@@ -181,7 +205,7 @@ module "s3_privatelink" {
 
 When replication is enabled, it is configured with:
 - Real-time replication monitoring (15-minute SLA)
-- Versioning automatically enabled on both source and destination
+- Versioning always enabled on the destination bucket (hardcoded in the module); the source bucket requires `enable_versioning = true` — the module enforces this at plan time via a `lifecycle.precondition` and will error if you attempt to enable replication without versioning on the source
 - Full object tagging and metadata replication
 - Output variables expose the destination bucket name and ARN
 
@@ -249,11 +273,14 @@ Versioning is **enabled by default** for data protection. Disable with:
 module "s3_privatelink" {
   source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
 
-  enable_versioning = false
+  enable_versioning  = false
+  enable_replication = false  # required: replication depends on source-bucket versioning
 
   # ... other variables
 }
 ```
+
+> **Note**: `enable_replication` must also be `false` when `enable_versioning = false`. S3 replication requires versioning on the source bucket. The module enforces this constraint at plan time and will produce an error if you attempt to combine `enable_versioning = false` with `enable_replication = true`.
 
 ## Implementation Status
 

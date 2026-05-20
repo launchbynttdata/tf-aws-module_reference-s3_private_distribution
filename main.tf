@@ -214,6 +214,13 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
   bucket = module.artifacts_bucket.id
   role   = aws_iam_role.replication[0].arn
 
+  lifecycle {
+    precondition {
+      condition     = var.enable_versioning
+      error_message = "enable_versioning must be true when enable_replication is true. S3 replication requires versioning on the source bucket. Set enable_replication = false or enable_versioning = true."
+    }
+  }
+
   rule {
     id       = "replicate-all"
     status   = "Enabled"

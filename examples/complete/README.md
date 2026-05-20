@@ -41,15 +41,14 @@ module "s3_privatelink" {
   vpce_subnet_ids         = [for s in aws_subnet.app_private : s.id]
   vpce_security_group_ids = [aws_security_group.vpce.id]
 
-  aws_region          = var.aws_region
-  name_prefix         = var.name_prefix
-  vpce_auto_accept    = var.vpce_auto_accept
+  aws_region           = var.aws_region
+  name_prefix          = var.name_prefix
+  vpce_auto_accept     = var.vpce_auto_accept
   vpce_ip_address_type = var.vpce_ip_address_type
-  vpce_dns_options    = var.vpce_dns_options
+  vpce_dns_options     = var.vpce_dns_options
 
-  management_principal_arns           = var.management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
-  additional_vpce_allowed_bucket_arns = var.additional_vpce_allowed_bucket_arns
+  additional_vpce_allowed_bucket_arns = []
 
   enable_versioning                            = var.enable_versioning
   enable_lifecycle                             = var.enable_lifecycle
@@ -84,14 +83,14 @@ make test AWS_REGION=us-east-2
 
 This command:
 1. Plans the Terraform example (the precondition verifies provider region == var.aws_region)
-2. Deploys the Lambda function and S3 infrastructure (~2-3 min)
+2. Deploys the Lambda function and S3 infrastructure (~10-15 min; VPC endpoint ENI provisioning is the main driver)
 3. Invokes the Lambda function to validate network-path access (~5 seconds)
 4. Destroys all infrastructure (~10-15 min; S3 cleanup is the bottleneck)
 5. After destroy, automatically verifies the artifacts bucket, disallowed bucket, and Lambda function are absent in AWS (`verifyResourcesDestroyed` via `t.Cleanup` in `tests/testimpl/test_impl.go`)
 
 Region defaults used by the test profile are `aws_region = us-east-2` and `replication_destination_region = us-west-1`.
 
-**Expected duration**: ~15-20 minutes total (most time is infrastructure teardown, not validation)
+**Expected duration**: ~35–45 minutes total. The test harness runs two full `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`). VPC interface endpoint ENI provisioning is the largest single contributor (~5–8 min); versioned S3 bucket destruction accounts for most of teardown time.
 
 **Manual validation** (if needed during development):
 
@@ -230,7 +229,7 @@ terraform destroy -var-file=test.tfvars
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for resource deployment. | `string` | `"us-east-1"` | no |
+| <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for resource deployment. | `string` | `"us-east-2"` | no |
 | <a name="input_vpce_auto_accept"></a> [vpce\_auto\_accept](#input\_vpce\_auto\_accept) | Whether to auto-accept the interface endpoint request. | `bool` | `false` | no |
 | <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default. | `string` | `null` | no |
 | <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS behavior for the interface endpoint. | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |

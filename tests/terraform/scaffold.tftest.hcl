@@ -59,7 +59,8 @@ run "plan_versioning_disabled" {
   command = plan
 
   variables {
-    enable_versioning = false
+    enable_versioning  = false
+    enable_replication = false # replication requires versioning; must be co-disabled
   }
 }
 
