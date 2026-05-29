@@ -95,6 +95,10 @@ define clean_terraform_module
 	$(RM) $(1)/provider.tf
 endef
 
+define clean_example_runtime_artifacts
+	rm -rf $(1)/.terraform $(1)/terraform.tfstate $(1)/terraform.tfstate.* $(1)/terraform.tfplan $(1)/terraform.tfplan.json;
+endef
+
 define init_terraform_module
 	echo && echo "Initializing $(1) ...";
 	$(TERRAFORM) -chdir=$(1) init -backend=false -input=false;
@@ -188,6 +192,14 @@ define validate_terraform_module
 
 endef
 
+define banner_start
+	@printf "\n=== [%s][START %s] %s ===\n" "$(1)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(2)"
+endef
+
+define banner_end
+	@printf "\n=== [%s][END   %s] %s ===\n" "$(1)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(2)"
+endef
+
 # ==============================================================================
 # Targets — Setup / Configuration
 # ==============================================================================
@@ -228,8 +240,12 @@ clean:
 
 .PHONY: check
 check:
+	$(call banner_start,check,running lint)
 	$(MAKE) lint
+	$(call banner_end,check,lint complete)
+	$(call banner_start,check,running test)
 	$(MAKE) test
+	$(call banner_end,check,test complete)
 
 .PHONY: lint
 lint::
@@ -279,15 +295,23 @@ go/list:
 
 .PHONY: go/lint
 go/lint:
+	$(call banner_start,go/lint,running golangci-lint for test directories: $(GO_TEST_DIRECTORIES))
 	$(foreach test_dir,$(GO_TEST_DIRECTORIES),$(call go_lint,$(test_dir)))
+	$(call banner_end,go/lint,golangci-lint complete)
 
 .PHONY: go/test
 go/test: go/test/environment
+	$(call banner_start,go/test,cleaning Terraform runtime artifacts from examples)
+	@$(foreach example,$(ALL_EXAMPLES),$(call clean_example_runtime_artifacts,$(example)))
+	$(call banner_start,go/test,running Go test suites (excluding readonly path: $(GO_TEST_READONLY_DIRECTORY)))
 	$(foreach test_dir,$(GO_TEST_DIRECTORIES),$(call go_test,$(test_dir),$(TEST_RUN_EXCLUDE_READONLY)))
+	$(call banner_end,go/test,go test phase complete)
 
 .PHONY: go/readonly_test
 go/readonly_test:
+	$(call banner_start,go/readonly_test,running readonly Go test suites under: $(GO_TEST_READONLY_DIRECTORY))
 	$(foreach test_dir,$(GO_TEST_DIRECTORIES),$(call go_test,$(test_dir),$(TEST_RUN_ONLY_READONLY)))
+	$(call banner_end,go/readonly_test,readonly go test phase complete)
 
 # Golang extensions to lint / test
 .PHONY: lint
@@ -300,7 +324,9 @@ endif
 
 .PHONY: test
 test:: tfmodule/plan
+	$(call banner_start,test,terraform planning complete; starting Go test phase)
 	$(MAKE) go/test
+	$(call banner_end,test,Go test phase complete)
 
 # ==============================================================================
 # Targets — Terraform module
@@ -319,16 +345,20 @@ tfmodule/fmt:
 
 .PHONY: tfmodule/init
 tfmodule/init:
+	$(call banner_start,tfmodule/init,initializing Terraform modules and examples)
 	@$(foreach module,$(ALL_TF_MODULES),$(call init_terraform_module,$(module)))
 	@$(foreach module,$(ALL_EXAMPLES),$(call init_terraform_module,$(module)))
+	$(call banner_end,tfmodule/init,initialization complete)
 
 .PHONY: tfmodule/lint
 tfmodule/lint: tfmodule/init
+	$(call banner_start,tfmodule/lint,running fmt, tflint, and validate across modules/examples)
 	@$(call check_terraform_fmt)
 	@$(foreach module,$(ALL_TF_MODULES),$(call tflint_terraform_module,$(module)))
 	@$(foreach module,$(ALL_TF_MODULES),$(call validate_terraform_module,$(module)))
 	@$(foreach module,$(ALL_EXAMPLES),$(call tflint_terraform_module,$(module)))
 	@$(foreach module,$(ALL_EXAMPLES),$(call validate_terraform_module,$(module)))
+	$(call banner_end,tfmodule/lint,terraform lint/validate complete)
 
 .PHONY: tfmodule/list
 tfmodule/list:
@@ -339,10 +369,13 @@ tfmodule/list:
 
 .PHONY: tfmodule/plan
 tfmodule/plan: tfmodule/init
+	$(call banner_start,tfmodule/plan,generating Terraform plans for all examples (VAR_FILE=$(VAR_FILE)))
 	@$(foreach module,$(ALL_EXAMPLES),$(call plan_terraform_module,$(module)))
+	$(call banner_end,tfmodule/plan,plan generation complete)
 
 .PHONY: tfmodule/create_example_providers
 tfmodule/create_example_providers: tfmodule/init
+	$(call banner_start,tfmodule/create_example_providers,generating provider.tf files for examples)
 ifdef PROVIDER_TEMPLATE
 	@$(if $(wildcard $(PROVIDER_TEMPLATE)),,$(error PROVIDER_TEMPLATE is set to '$(PROVIDER_TEMPLATE)' but the file does not exist))
 	@$(foreach example,$(ALL_EXAMPLES),cp $(PROVIDER_TEMPLATE) $(call provider_file_path,$(example));)
@@ -350,14 +383,21 @@ else
 	@$(if $(findstring aws.global,$(shell grep -se "\\s*provider\\s*=" *.tf || true)),$(call create_example_providers,.),)
 	@$(foreach example,$(ALL_EXAMPLES),$(call create_example_providers,$(example)))
 endif
+	$(call banner_end,tfmodule/create_example_providers,provider file generation complete)
 
 # Terraform module extensions to lint / test
 .PHONY: lint
 lint::
+	$(call banner_start,lint,preparing provider files for examples)
 	$(MAKE) tfmodule/create_example_providers
+	$(call banner_start,lint,running Terraform lint/validate stage)
 	$(MAKE) tfmodule/lint
+	$(call banner_end,lint,lint workflow complete)
 
 .PHONY: test
 test::
+	$(call banner_start,test,preparing provider files for examples)
 	$(MAKE) tfmodule/create_example_providers
+	$(call banner_start,test,starting Terraform planning stage)
 	$(MAKE) tfmodule/plan
+	$(call banner_end,test,terraform planning stage complete)

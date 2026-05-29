@@ -50,6 +50,12 @@ variable "lambda_runtime" {
 }
 
 # S3 Module Variables
+variable "management_principal_arns" {
+  description = "Explicit Terraform/CI principal ARNs allowed to bypass VPCE-only restrictions."
+  type        = list(string)
+  default     = []
+}
+
 variable "pipeline_role_arns" {
   description = "ARNs of pipeline roles allowed to access the bucket."
   type        = list(string)

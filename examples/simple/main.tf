@@ -20,8 +20,28 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_role" "current_assumed_role" {
+  count = local.resolve_current_iam_role_arn ? 1 : 0
+  name  = local.caller_assumed_role_name
+}
+
 locals {
   az = data.aws_availability_zones.available.names[0]
+
+  caller_is_assumed_role       = startswith(data.aws_caller_identity.current.arn, "arn:aws:sts::") && strcontains(data.aws_caller_identity.current.arn, ":assumed-role/")
+  caller_assumed_role_name     = local.caller_is_assumed_role ? split("/", data.aws_caller_identity.current.arn)[1] : null
+  resolve_current_iam_role_arn = length(var.management_principal_arns) == 0 && local.caller_is_assumed_role
+
+  # Example-only fallback: if no management ARNs are provided, trust
+  # the current execution principal so local testing and CI can proceed.
+  # For STS assumed-role callers (for example SSO sessions), also resolve and
+  # include the backing IAM role ARN (with full path) for policy matching.
+  effective_management_principal_arns = length(var.management_principal_arns) > 0 ? var.management_principal_arns : distinct(compact(concat(
+    [data.aws_caller_identity.current.arn],
+    [local.resolve_current_iam_role_arn ? data.aws_iam_role.current_assumed_role[0].arn : null]
+  )))
 }
 
 # ---------------------------------------------------------------------------
@@ -103,6 +123,10 @@ module "s3_privatelink" {
   # Required — region
   aws_region  = var.aws_region
   name_prefix = var.name_prefix
+
+  management_principal_arns = local.effective_management_principal_arns
+  pipeline_role_arns        = var.pipeline_role_arns
+  enable_replication        = var.enable_replication
 
   # All other inputs use secure defaults (see collection module variables.tf)
 }

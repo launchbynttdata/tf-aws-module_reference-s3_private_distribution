@@ -32,6 +32,8 @@ This example demonstrates minimal invocation of the portable s3-bucket package.
 | [aws_subnet.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
 | [aws_vpc.main](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) | resource |
 | [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_role.current_assumed_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_role) | data source |
 
 ## Inputs
 
@@ -39,6 +41,9 @@ This example demonstrates minimal invocation of the portable s3-bucket package.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for test deployment. | `string` | `"us-west-1"` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix for harness and module resources. | `string` | `"msix-s3-simple"` | no |
+| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Optional management principal ARNs for the module. If empty, the example falls back to the current execution principal ARN. | `list(string)` | `[]` | no |
+| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | Optional pipeline role ARNs granted write access by the module. | `list(string)` | `[]` | no |
+| <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable replication in the root module. Defaults to false in this simple example to keep rollout/testing output focused on management principal behavior. | `bool` | `false` | no |
 
 ## Outputs
 

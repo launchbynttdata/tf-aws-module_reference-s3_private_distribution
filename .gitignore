@@ -62,3 +62,6 @@ azure_env.sh
 # VS Code
 .vscode/
 lambda_function.zip
+
+# Local scratch repros for debugging
+_scratch/

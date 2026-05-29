@@ -63,6 +63,12 @@ variable "admin_ingress_cidrs" {
 # (these are passed through to the s3-bucket collection module)
 # ---------------------------------------------------------------------------
 
+variable "management_principal_arns" {
+  description = "Terraform/CI principal ARNs allowed to bypass VPCE-only restrictions (passed to collection module)."
+  type        = list(string)
+  default     = []
+}
+
 variable "pipeline_role_arns" {
   description = "IAM role ARNs granted write access to the artifact bucket (passed to collection module)."
   type        = list(string)

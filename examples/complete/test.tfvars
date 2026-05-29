@@ -17,16 +17,21 @@ enable_replication = true
 # ---------------------------------------------------------------------------
 # Access Control
 #
-# The identity running `terraform apply` (CI role, SSO session, etc.) is
-# automatically exempted from the VPC endpoint restriction via the
-# aws:PrincipalAccount condition in the bucket policy — no variable entry
-# is needed for the deployer itself.
+# The module no longer grants a broad same-account bypass.
+# Trust is ARN-only. For Terragrunt/CI, pass explicit execution role/user ARNs
+# in management_principal_arns.
+#
+# For additional Terraform/CI principals that run outside VPCE, add explicit
+# ARNs to management_principal_arns.
 #
 # For pipeline roles that need explicit CloudTrail-visible write access,
-# add them to pipeline_role_arns. All other in-account principals already
-# have management access via the aws:PrincipalAccount bypass.
+# add them to pipeline_role_arns. These ARNs are also included in the
+# management bypass patterns used by DenyAccessOutsideVPCEndpoint.
 #
 # Examples:
+#   management_principal_arns = [
+#     "arn:aws:iam::123456789012:role/terraform-operator",
+#   ]
 #   pipeline_role_arns = [
 #     "arn:aws:iam::123456789012:role/msix-release-pipeline",
 #   ]

@@ -107,10 +107,38 @@ variable "additional_vpce_allowed_bucket_arns" {
 # Access policy — S3 bucket policy principals
 # ---------------------------------------------------------------------------
 
+variable "management_principal_arns" {
+  description = "Terraform/CI principal ARNs allowed to bypass the VPCE-only deny path. Supports IAM role/user ARNs and STS assumed-role ARNs. Provide explicit trusted principals (for example Terragrunt/Terraform execution role and CI pipeline roles)."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.management_principal_arns :
+      can(regex("^arn:aws[a-z-]*:[a-z0-9-]+:[a-z0-9-]*:[0-9]{0,12}:.+$", arn))
+    ])
+    error_message = "All management_principal_arns entries must be valid AWS ARNs."
+  }
+}
+
 variable "pipeline_role_arns" {
   description = "IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail."
   type        = list(string)
   default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.pipeline_role_arns :
+      can(regex("^arn:aws[a-z-]*:iam::[0-9]{12}:role/.+$", arn))
+    ])
+    error_message = "All pipeline_role_arns entries must be IAM role ARNs in the format arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME."
+  }
+}
+
+variable "enforce_deployer_principal_check" {
+  description = "If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted management principal pattern. Prevents accidental Terraform/CI lockout from bucket policy restrictions."
+  type        = bool
+  default     = true
 }
 
 # ---------------------------------------------------------------------------

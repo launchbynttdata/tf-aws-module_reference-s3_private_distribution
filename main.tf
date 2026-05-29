@@ -59,7 +59,10 @@ resource "aws_s3_bucket_policy" "artifacts" {
     Statement = local.bucket_policy_statements
   })
 
-  depends_on = [module.artifacts_bucket]
+  depends_on = [
+    module.artifacts_bucket,
+    terraform_data.deployer_lockout_guard
+  ]
 }
 
 # ---------------------------------------------------------------------------
@@ -256,6 +259,47 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
 }
 
 locals {
+  caller_principal_arn = data.aws_caller_identity.current.arn
+
+  caller_principal_aliases = distinct(compact(concat(
+    [local.caller_principal_arn],
+    [
+      startswith(local.caller_principal_arn, "arn:aws:sts::") && strcontains(local.caller_principal_arn, ":assumed-role/") ? "${join("/", slice(split("/", local.caller_principal_arn), 0, length(split("/", local.caller_principal_arn)) - 1))}/*" : null
+    ],
+    [
+      startswith(local.caller_principal_arn, "arn:aws:sts::") && strcontains(local.caller_principal_arn, ":assumed-role/") ? replace(replace(join("/", slice(split("/", local.caller_principal_arn), 0, length(split("/", local.caller_principal_arn)) - 1)), ":sts::", ":iam::"), ":assumed-role/", ":role/") : null
+    ]
+  )))
+
+  management_principal_arns = distinct(concat(
+    var.pipeline_role_arns,
+    var.management_principal_arns
+  ))
+
+  # Management principal ARN patterns for S3 bucket policy conditions.
+  #
+  # Supports explicit IAM role/user ARNs and STS assumed-role session ARNs.
+  # STS session ARNs are normalized to stable wildcard/role patterns to avoid
+  # policy drift from per-login session names.
+  management_principal_arn_patterns = distinct(compact(concat(
+    [
+      for arn in local.management_principal_arns :
+      startswith(arn, "arn:aws:sts::") ? null : arn
+    ],
+    [
+      for arn in local.management_principal_arns :
+      startswith(arn, "arn:aws:iam::") && strcontains(arn, ":role/") ? "${replace(replace(arn, ":iam::", ":sts::"), ":role/", ":assumed-role/")}/*" : null
+    ],
+    [
+      for arn in local.management_principal_arns :
+      startswith(arn, "arn:aws:sts::") && strcontains(arn, ":assumed-role/") ? "${join("/", slice(split("/", arn), 0, length(split("/", arn)) - 1))}/*" : null
+    ],
+    [
+      for arn in local.management_principal_arns :
+      startswith(arn, "arn:aws:sts::") && strcontains(arn, ":assumed-role/") ? replace(replace(join("/", slice(split("/", arn), 0, length(split("/", arn)) - 1)), ":sts::", ":iam::"), ":assumed-role/", ":role/") : null
+    ]
+  )))
+
   s3_vpce_wildcard_dns_candidates = [
     for entry in module.s3_interface_vpce.dns_entry : entry.dns_name if startswith(entry.dns_name, "*.")
   ]
@@ -337,9 +381,8 @@ locals {
   #   1. DenyAccessOutsideVPCEndpoint
   #      - Denies read (GetObject, ListBucket) and write (PutObject, DeleteObject,
   #        DeleteObjectVersion) actions UNLESS source is the interface endpoint
-  #      - EXCEPT for principals authenticated in this AWS account (aws:PrincipalAccount)
-  #      - Account-scoped exception allows Terraform, CI/CD, and console access without
-  #        depending on session-specific ARN patterns (which drift between applies)
+  #      - EXCEPT for principals in management_principal_arn_patterns
+  #      - Restricts bypass to explicit Terraform/CI roles instead of all in-account principals
   #
   #   2. AllowClientReadViaVPCEndpoint
   #      - Permits GetObject when source is the interface endpoint
@@ -347,73 +390,84 @@ locals {
   #      - Clients outside this endpoint are caught by the Deny statement above
   #
   #   3. AllowManagementAccess
-  #      - Explicitly allows full access to any authenticated principal in this AWS account
-  #      - Not restricted to endpoint — enables Terraform CLI, AWS console, CI/CD pipelines
-  #      - Uses aws:PrincipalAccount (stable account ID) rather than session-specific ARN
-  #        patterns, which avoids idempotency drift and resolves 403s during destroy refresh
+  #      - Grants explicit management access only to configured principal patterns
+  #      - Keeps Terraform/CI workflows operational without broad same-account access
   #
-  option_b_statements = [
-    for statement in [
+  management_access_statements = length(local.management_principal_arn_patterns) > 0 ? [
+    {
+      Sid       = "AllowManagementAccessByArn"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource = [
+        module.artifacts_bucket.arn,
+        "${module.artifacts_bucket.arn}/*"
+      ]
+      Condition = {
+        ArnLike = {
+          "aws:PrincipalArn" = local.management_principal_arn_patterns
+        }
+        Bool = {
+          "aws:SecureTransport" = "true"
+        }
+      }
+    }
+  ] : []
+
+  deny_outside_vpce_statement = {
+    Sid       = "DenyAccessOutsideVPCEndpoint"
+    Effect    = "Deny"
+    Principal = "*"
+    Action = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+      "s3:AbortMultipartUpload",
+    ]
+    Resource = [
+      module.artifacts_bucket.arn,
+      "${module.artifacts_bucket.arn}/*"
+    ]
+    Condition = merge(
       {
-        Sid       = "DenyAccessOutsideVPCEndpoint"
-        Effect    = "Deny"
-        Principal = "*"
-        Action = [
-          "s3:GetObject",
-          "s3:GetObjectVersion",
-          "s3:ListBucket",
-          "s3:ListBucketVersions",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:DeleteObjectVersion",
-          "s3:AbortMultipartUpload",
-        ]
-        Resource = [
-          module.artifacts_bucket.arn,
-          "${module.artifacts_bucket.arn}/*"
-        ]
-        Condition = {
-          StringNotEquals = {
-            "aws:SourceVpce"       = module.s3_interface_vpce.id
-            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
-          }
+        StringNotEquals = {
+          "aws:SourceVpce" = module.s3_interface_vpce.id
         }
       },
-      {
-        Sid       = "AllowClientReadViaVPCEndpoint"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${module.artifacts_bucket.arn}/*"
-        Condition = {
-          StringEquals = {
-            "aws:SourceVpce" = module.s3_interface_vpce.id
-          }
-          Bool = {
-            "aws:SecureTransport" = "true"
+      length(local.management_principal_arn_patterns) > 0 ? {
+        ArnNotLike = {
+          "aws:PrincipalArn" = local.management_principal_arn_patterns
+        }
+      } : {}
+    )
+  }
+
+  option_b_statements = [
+    for statement in concat(
+      [
+        local.deny_outside_vpce_statement,
+        {
+          Sid       = "AllowClientReadViaVPCEndpoint"
+          Effect    = "Allow"
+          Principal = "*"
+          Action    = "s3:GetObject"
+          Resource  = "${module.artifacts_bucket.arn}/*"
+          Condition = {
+            StringEquals = {
+              "aws:SourceVpce" = module.s3_interface_vpce.id
+            }
+            Bool = {
+              "aws:SecureTransport" = "true"
+            }
           }
         }
-      }
-      ,
-      {
-        Sid       = "AllowManagementAccess"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:*"
-        Resource = [
-          module.artifacts_bucket.arn,
-          "${module.artifacts_bucket.arn}/*"
-        ]
-        Condition = {
-          StringEquals = {
-            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
-          }
-          Bool = {
-            "aws:SecureTransport" = "true"
-          }
-        }
-      }
-    ] : statement
+      ],
+      local.management_access_statements
+    ) : statement
   ]
 
   bucket_policy_statements = concat(
@@ -437,4 +491,21 @@ locals {
     local.option_b_statements,
     local.pipeline_write_statements
   )
+
+  caller_is_trusted_management_principal = length(setintersection(
+    toset(local.caller_principal_aliases),
+    toset(local.management_principal_arn_patterns)
+  )) > 0
+}
+
+resource "terraform_data" "deployer_lockout_guard" {
+  lifecycle {
+    precondition {
+      condition = (
+        !var.enforce_deployer_principal_check ||
+        local.caller_is_trusted_management_principal
+      )
+      error_message = "Lockout prevention check failed: the current deployment principal '${local.caller_principal_arn}' is not represented in management_principal_arns/pipeline_role_arns. Add the deployment role ARN (or corresponding assumed-role form) to trusted principal inputs before apply."
+    }
+  }
 }

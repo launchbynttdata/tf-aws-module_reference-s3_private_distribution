@@ -104,7 +104,9 @@ interface endpoints.
 | [random_id.windows_resources_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 | [random_string.disallowed_bucket_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 | [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.ec2_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_role.current_assumed_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_role) | data source |
 | [aws_ssm_parameter.windows_ami](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ssm_parameter) | data source |
 
 ## Inputs
@@ -119,6 +121,7 @@ interface endpoints.
 | <a name="input_windows_instance_type"></a> [windows\_instance\_type](#input\_windows\_instance\_type) | EC2 instance type for the Windows client emulator. | `string` | `"t3.large"` | no |
 | <a name="input_windows_key_name"></a> [windows\_key\_name](#input\_windows\_key\_name) | Optional EC2 key pair for the Windows instance. Leave null for SSM-only access. | `string` | `null` | no |
 | <a name="input_admin_ingress_cidrs"></a> [admin\_ingress\_cidrs](#input\_admin\_ingress\_cidrs) | Optional CIDR blocks for RDP (3389) ingress to the Windows emulator. Empty list keeps RDP closed. | `list(string)` | `[]` | no |
+| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Terraform/CI principal ARNs allowed to bypass VPCE-only restrictions (passed to collection module). | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access to the artifact bucket (passed to collection module). | `list(string)` | `[]` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Additional S3 bucket ARNs allowed through the endpoint policy (passed to collection module). | `list(string)` | `[]` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Pass-through: enable versioning on the collection module artifact bucket. | `bool` | `true` | no |

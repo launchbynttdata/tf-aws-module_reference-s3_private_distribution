@@ -38,12 +38,9 @@ const (
 // and fail if the second apply produces any planned changes. This validates that
 // the module's resource definitions produce stable, deterministic state.
 //
-// Root cause note: the artifacts bucket policy previously embedded
-// data.aws_caller_identity.current.arn (which includes the SSO session username)
-// into the policy JSON. Because the session name changes on each authentication,
-// Terraform detected a diff on every second apply. The policy now uses
-// data.aws_caller_identity.current.account_id (stable 12-digit account ID via
-// aws:PrincipalAccount conditions), so the JSON is identical on both applies.
+// Policy note: management bypass uses explicit role/user ARN patterns
+// (including STS wildcard equivalents) so SSO session name drift does not
+// create second-apply diffs in policy JSON.
 func buildCtx(tfvarsFile string) *types.TestContext {
 	ctx := types.CreateTestContextBuilder().
 		SetTestConfig(&testimpl.ThisTFModuleConfig{}).

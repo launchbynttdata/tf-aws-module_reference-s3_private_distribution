@@ -83,6 +83,7 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	require.NoError(t, err, "failed to load AWS SDK config")
 
 	lambdaClient := lambda.NewFromConfig(awsCfg)
+	s3Client := s3.NewFromConfig(awsCfg)
 
 	// Verify the Lambda function exists and is configured.
 	getFuncOut, err := lambdaClient.GetFunction(context.Background(), &lambda.GetFunctionInput{
@@ -92,6 +93,15 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	require.NotNil(t, getFuncOut.Configuration, "Lambda function configuration missing")
 	assert.Equal(t, functionName, aws.ToString(getFuncOut.Configuration.FunctionName), "Lambda function name should match Terraform output")
 	assert.Equal(t, lambdatypes.RuntimePython312, getFuncOut.Configuration.Runtime, "Lambda should be running Python 3.12")
+
+	// Verify the artifacts bucket policy does not use broad same-account bypass logic.
+	bucketPolicyOut, err := s3Client.GetBucketPolicy(context.Background(), &s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	})
+	require.NoError(t, err, "failed to get bucket policy for %s", bucketName)
+	require.NotEmpty(t, aws.ToString(bucketPolicyOut.Policy), "bucket policy JSON should not be empty")
+	assert.Contains(t, aws.ToString(bucketPolicyOut.Policy), "DenyAccessOutsideVPCEndpoint", "bucket policy should include VPCE deny statement")
+	assert.NotContains(t, aws.ToString(bucketPolicyOut.Policy), "aws:PrincipalAccount", "bucket policy must not include broad same-account bypass conditions")
 
 	// TODO: implement — verify logging target wiring
 	// When enable_logging = true, assert that the artifact bucket has server access logging

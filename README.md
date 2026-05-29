@@ -25,21 +25,15 @@ The intended standalone repository identity is `tf-aws-module_collection-private
 
 ## Artifacts Bucket Policy Design
 
-The artifacts bucket policy enforces private access through a layered, account-aware model. Four statements are applied in order of evaluation:
+The artifacts bucket policy enforces private access through a layered model. Three statement groups are applied in order of evaluation:
 
 ### Statement 1 — `DenyInsecureTransport`
 Denies all S3 actions unconditionally unless `aws:SecureTransport = true`. Applies to every principal and request type with no exceptions.
 
 ### Statement 2 — `DenyAccessOutsideVPCEndpoint`
-Denies key S3 read/write actions (`GetObject`, `ListBucket`, `PutObject`, `DeleteObject`, etc.) **unless** the request arrives through the managed S3 interface VPC endpoint (`aws:SourceVpce`) **or** the requesting principal belongs to this AWS account (`aws:PrincipalAccount`). Account principals bypass the Deny entirely — this allows Terraform, CI/CD pipelines, and console operators to access the bucket without routing through the endpoint.
+Denies key S3 read/write actions (`GetObject`, `ListBucket`, `PutObject`, `DeleteObject`, etc.) unless the request arrives through the managed S3 interface VPC endpoint (`aws:SourceVpce`).
 
-> **Why `aws:PrincipalAccount` instead of `aws:PrincipalArn`?**
->
-> ARN-based matching (`ArnLike: aws:PrincipalArn`) is unreliable for IAM Identity Center managed roles (`AWSReservedSSO_*`). The IAM role ARN (`arn:aws:iam::ACCOUNT:role/AWSReservedSSO_...`) does not match the STS session ARN that Identity Center generates at login (`arn:aws:sts::ACCOUNT:assumed-role/AWSReservedSSO_.../username@domain.com`), causing consistent 403 errors on operations like `terraform destroy`.
->
-> Using `aws:PrincipalAccount` with the stable 12-digit account ID avoids this entirely — the condition matches any principal in the account regardless of how they authenticated.
->
-> This also resolved an idempotency problem: the previous approach embedded `data.aws_caller_identity.current.arn` (which includes the SSO session username) into the policy JSON. Because the session name changes per-authentication, Terraform detected a diff on every second apply even though the intended policy was unchanged.
+An explicit bypass can be granted only for configured management principals via `management_principal_arns` (and `pipeline_role_arns`, which are included in the same bypass pattern set). Bypass matching uses wildcard-compatible `aws:PrincipalArn` patterns so IAM Identity Center STS sessions match reliably.
 
 ### Statement 3 — `AllowClientReadViaVPCEndpoint`
 Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpoint and transport is secure. This is the primary distribution read path for artifact consumers inside allowed subnets.
@@ -48,35 +42,16 @@ Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpo
 >
 > S3 interface endpoints mask the client's true source IP with the endpoint ENI's private IP. `aws:SourceIp` conditions in bucket policies are unreliable over PrivateLink. Subnet-level network controls (security groups, route tables, NACLs) enforce the actual network boundary — the bucket policy trusts the endpoint identity, not the source IP.
 
-### Statement 4 — `AllowManagementAccess`
-Grants full `s3:*` to any principal in this AWS account (`aws:PrincipalAccount`), provided HTTPS is used. Covers Terraform, CI/CD pipelines, and console operators without requiring them to traverse the VPC endpoint path.
-
 ### Pipeline Write Statements (dynamic)
 If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Named statements make each pipeline principal's write activity individually traceable in CloudTrail.
 
-### Accepted trade-off — broad same-account bypass
+### Management Access Model
 
-> **This is a documented, intentional design decision — not an unresolved security gap.**
->
-> Both `DenyAccessOutsideVPCEndpoint` and `AllowManagementAccess` use `aws:PrincipalAccount` to
-> exempt in-account principals from the VPC endpoint requirement. This means any IAM principal in
-> the same AWS account with identity-based S3 permissions can access the bucket without going
-> through the interface endpoint.
->
-> **Why this is acceptable here:**
-> - The primary threat model is cross-account or public access, both of which are blocked.
-> - In-account principals are already subject to IAM permission boundaries and SCPs enforced at the
->   organization level — the bucket policy is not the sole layer of defence.
-> - Restricting to specific ARNs (`aws:PrincipalArn`) breaks IAM Identity Center (SSO) sessions
->   because the assumed-role session ARN differs from the IAM role ARN, causing 403 failures for
->   every Terraform operator and CI/CD pipeline that uses SSO-vended credentials.
-> - `pipeline_role_arns` provides explicit per-pipeline write grants for teams that want
->   per-principal CloudTrail visibility without relying on the broad account exemption.
->
-> Teams that want to narrow this to specific principals should populate `pipeline_role_arns` and
-> replace the `aws:PrincipalAccount` conditions with an explicit ARN allowlist — accepting that SSO
-> session ARN drift requires a session-name wildcard (`arn:aws:sts::ACCOUNT:assumed-role/ROLE/*`)
-> rather than a stable IAM role ARN.
+- There is no broad same-account bypass.
+- Requests outside the interface endpoint are denied unless the principal ARN matches management patterns derived from:
+  - `management_principal_arns`
+  - `pipeline_role_arns`
+- Terraform/CI operators that run outside the VPCE path should be listed explicitly in `management_principal_arns` (for example Terragrunt/Terraform execution roles).
 
 ---
 
@@ -301,6 +276,7 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -322,6 +298,7 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | [aws_s3_bucket_policy.artifacts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
 | [aws_s3_bucket_replication_configuration.artifacts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_replication_configuration) | resource |
 | [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
+| [terraform_data.deployer_lockout_guard](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 
 ## Inputs
@@ -337,7 +314,9 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS options for the interface endpoint. dns\_record\_ip\_type supports A/AAAA behavior (for example ipv4 or dualstack). | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix applied to all resources created by this module. | `string` | `"msix-s3"` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Optional additional S3 bucket ARNs allowed through the interface endpoint policy. The artifact bucket is always included. | `list(string)` | `[]` | no |
+| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Terraform/CI principal ARNs allowed to bypass the VPCE-only deny path. Supports IAM role/user ARNs and STS assumed-role ARNs. Provide explicit trusted principals (for example Terragrunt/Terraform execution role and CI pipeline roles). | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail. | `list(string)` | `[]` | no |
+| <a name="input_enforce_deployer_principal_check"></a> [enforce\_deployer\_principal\_check](#input\_enforce\_deployer\_principal\_check) | If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted management principal pattern. Prevents accidental Terraform/CI lockout from bucket policy restrictions. | `bool` | `true` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 artifact bucket. Defaults to true for data protection. | `bool` | `true` | no |
 | <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the S3 artifact bucket to expire old versions and clean up incomplete multipart uploads. | `bool` | `true` | no |
 | <a name="input_lifecycle_noncurrent_version_expiration_days"></a> [lifecycle\_noncurrent\_version\_expiration\_days](#input\_lifecycle\_noncurrent\_version\_expiration\_days) | Number of days after which to expire non-current object versions. Only applies if enable\_lifecycle is true. Set to 0 to disable. | `number` | `90` | no |
