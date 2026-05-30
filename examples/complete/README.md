@@ -47,7 +47,7 @@ module "s3_privatelink" {
   vpce_ip_address_type = var.vpce_ip_address_type
   vpce_dns_options     = var.vpce_dns_options
 
-  management_principal_arns            = var.management_principal_arns
+  management_principal_arns            = local.effective_management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
   additional_vpce_allowed_bucket_arns = []
 
@@ -64,6 +64,11 @@ module "s3_privatelink" {
   tags = var.tags
 }
 ```
+
+The example computes `local.effective_management_principal_arns` so that when
+`management_principal_arns` is not explicitly set, local/CI runs can still
+proceed by trusting the current execution principal (including assumed-role
+caller normalization).
 
 ## Running Tests
 

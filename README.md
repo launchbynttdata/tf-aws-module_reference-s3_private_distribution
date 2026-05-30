@@ -17,6 +17,7 @@ The intended standalone repository identity is `tf-aws-module_collection-private
 - Nested examples:
   - examples/simple
   - examples/complete
+  - examples/ec2-windows-validation (manual reference harness; not part of automated Go test suite)
 - Test suites:
   - tests/terraform (terraform test smoke scaffold)
   - tests/post_deploy_functional (Go/Terratest apply + functional validation)
@@ -66,9 +67,10 @@ Required files and setup:
 ## Testing
 
 - `make test` executes Terraform example planning (`tfmodule/plan`) and then runs functional Go post-deploy tests via `go/test`.
+- `make test` currently uses composed double-colon stages in the Makefile, so you will see staged provider generation/planning banners and an additional plan stage in output.
 - Post-deploy tests invoke a Lambda function deployed in private subnets to validate S3 endpoint access via network-path-only conditions (no IAM credentials).
 - Test region defaults are pinned for quota stability: primary deployment in `us-east-2`, replication destination in `us-west-1`.
-- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~35–45 minutes. The test harness runs two sequential `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`), which accounts for the majority of the time beyond a single apply+destroy. See `.idea/deployment-timing-analysis.md` for a full phase-by-phase breakdown.
+- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~35–45 minutes. The test harness runs two sequential `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`), which accounts for the majority of the time beyond a single apply+destroy.
 - `make go/readonly_test` runs readonly/non-destructive Go verification against existing infrastructure.
 - `tests/terraform/scaffold.tftest.hcl` runs `terraform test` plan-only profile checks. It is not wired into `make test` and does not require deployed infrastructure.
 - **Post-destroy verification**: After `terraform destroy`, the Go test suite automatically verifies that the artifacts bucket, disallowed bucket, and Lambda function are actually absent in AWS (`tests/testimpl/test_impl.go: verifyResourcesDestroyed` via `t.Cleanup`).
@@ -97,8 +99,6 @@ These are useful for behavior checks, but they relax controls that map to curren
 | `test.lifecycle-disabled.tfvars` or `test.versioning-disabled.tfvars` | `enable_lifecycle=false` and/or `enable_versioning=false` | `FG_R00101` | Keep out of default CI; use only when intentionally validating degraded mode |
 
 Policy context: waiver rationale for `FG_R00101`, `FG_R00274`, and `FG_R00275` is documented in inline comments in [main.tf](main.tf) — these controls are implemented but currently waived at plan-time interpretation due to the limitations described in the Regula Waiver section above.
-
-## Compliance and Observability Features
 
 ## Regula Waiver Rationale (Known Plan-Time Limitations)
 

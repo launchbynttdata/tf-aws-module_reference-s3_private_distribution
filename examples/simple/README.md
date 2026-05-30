@@ -1,6 +1,7 @@
 # Simple Example
 
-This example demonstrates minimal invocation of the portable s3-bucket package.
+This example demonstrates a minimal harness for invoking the private
+distribution bucket collection module from the repository root.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
