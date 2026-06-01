@@ -56,6 +56,19 @@ locals {
     "${var.name_prefix}-disallowed-${random_string.disallowed_bucket_suffix.result}",
     "_", "-"
   ))
+
+  # Name for the externally-supplied logging target bucket that can be
+  # auto-created in this example. Follows the same naming convention as
+  # the auto-created logging bucket in the root module.
+  external_logging_bucket_name = lower(replace(
+    "${var.name_prefix}-ext-log",
+    "_", "-"
+  ))
+
+  # When use_external_logging_target=true, route logs to the self-managed
+  # external_logging_target bucket created by this example instead of the
+  # auto-created logging bucket inside the root module.
+  effective_logging_target_bucket = var.use_external_logging_target ? local.external_logging_bucket_name : var.logging_target_bucket
 }
 
 resource "random_string" "disallowed_bucket_suffix" {
@@ -176,7 +189,7 @@ module "s3_privatelink" {
   lifecycle_noncurrent_version_expiration_days = var.lifecycle_noncurrent_version_expiration_days
   lifecycle_incomplete_multipart_upload_days   = var.lifecycle_incomplete_multipart_upload_days
   enable_logging                               = var.enable_logging
-  logging_target_bucket                        = var.logging_target_bucket
+  logging_target_bucket                        = local.effective_logging_target_bucket
   logging_prefix                               = var.logging_prefix
   enable_replication                           = var.enable_replication
   replication_destination_region               = var.replication_destination_region
@@ -194,6 +207,82 @@ resource "aws_s3_object" "sample_appinstaller" {
   key          = "client/latest/agent-fast.appinstaller"
   content      = "<?xml version=\"1.0\"?><AppInstaller></AppInstaller>"
   content_type = "application/xml"
+}
+
+# ---------------------------------------------------------------------------
+# Disallowed Bucket (negative test target)
+# ---------------------------------------------------------------------------
+# External Logging Target Bucket (optional — only used when
+# var.logging_target_bucket is null and enable_logging is true and we want
+# an external bucket instead of the auto-created one)
+#
+# Created unconditionally in this example so the test.external-logging-target
+# profile can reference it without requiring a pre-existing bucket. When the
+# baseline or other profiles run, they either set logging_target_bucket=null
+# (auto-created logging bucket) or provide this bucket's name explicitly.
+#
+# Policy follows the same pattern as the auto-created logging bucket in the
+# root module: only the S3 logging service may write, scoped by source bucket
+# ARN and source account.
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "external_logging_target" {
+  bucket        = local.external_logging_bucket_name
+  force_destroy = true
+  tags          = merge(var.tags, { Name = "${var.name_prefix}-ext-log", Purpose = "S3AccessLogging" })
+}
+
+resource "aws_s3_bucket_public_access_block" "external_logging_target" {
+  bucket                  = aws_s3_bucket.external_logging_target.id
+  block_public_acls       = true
+  ignore_public_acls      = true
+  block_public_policy     = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "external_logging_target" {
+  bucket = aws_s3_bucket.external_logging_target.id
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+  depends_on = [aws_s3_bucket_public_access_block.external_logging_target]
+}
+
+resource "aws_s3_bucket_policy" "external_logging_target" {
+  bucket = aws_s3_bucket.external_logging_target.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.external_logging_target.arn,
+          "${aws_s3_bucket.external_logging_target.arn}/*"
+        ]
+        Condition = { Bool = { "aws:SecureTransport" = "false" } }
+      },
+      {
+        Sid    = "AllowS3LoggingService"
+        Effect = "Allow"
+        Principal = {
+          Service = "logging.s3.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.external_logging_target.arn}/*"
+        Condition = {
+          ArnLike      = { "aws:SourceArn" = module.s3_privatelink.s3_bucket_arn }
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      }
+    ]
+  })
+  depends_on = [
+    aws_s3_bucket_public_access_block.external_logging_target,
+    aws_s3_bucket_ownership_controls.external_logging_target,
+  ]
 }
 
 # ---------------------------------------------------------------------------

@@ -34,7 +34,7 @@ Denies all S3 actions unconditionally unless `aws:SecureTransport = true`. Appli
 ### Statement 2 — `DenyAccessOutsideVPCEndpoint`
 Denies key S3 read/write actions (`GetObject`, `ListBucket`, `PutObject`, `DeleteObject`, etc.) unless the request arrives through the managed S3 interface VPC endpoint (`aws:SourceVpce`).
 
-An explicit bypass can be granted only for configured management principals via `management_principal_arns` (and `pipeline_role_arns`, which are included in the same bypass pattern set). Bypass matching uses wildcard-compatible `aws:PrincipalArn` patterns so IAM Identity Center STS sessions match reliably.
+An explicit bypass can be granted only for configured management principals via `management_principal_arns`. Bypass matching uses wildcard-compatible `aws:PrincipalArn` patterns so IAM Identity Center STS sessions match reliably.
 
 ### Statement 3 — `AllowClientReadViaVPCEndpoint`
 Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpoint and transport is secure. This is the primary distribution read path for artifact consumers inside allowed subnets.
@@ -44,15 +44,19 @@ Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpo
 > S3 interface endpoints mask the client's true source IP with the endpoint ENI's private IP. `aws:SourceIp` conditions in bucket policies are unreliable over PrivateLink. Subnet-level network controls (security groups, route tables, NACLs) enforce the actual network boundary — the bucket policy trusts the endpoint identity, not the source IP.
 
 ### Pipeline Write Statements (dynamic)
-If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Named statements make each pipeline principal's write activity individually traceable in CloudTrail.
+If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Pipeline roles do not receive the broader management bypass.
+### Pipeline Write Statements (dynamic)
+If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`.
 
 ### Management Access Model
 
 - There is no broad same-account bypass.
-- Requests outside the interface endpoint are denied unless the principal ARN matches management patterns derived from:
-  - `management_principal_arns`
-  - `pipeline_role_arns`
+- Requests outside the interface endpoint are denied unless the principal ARN matches management patterns derived from `management_principal_arns`.
 - Terraform/CI operators that run outside the VPCE path should be listed explicitly in `management_principal_arns` (for example Terragrunt/Terraform execution roles).
+- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they receive only the dedicated write allow statements.
+- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they do not get the broader management allow.
+- Terraform/CI operators that run outside the VPCE path should be listed explicitly in `management_principal_arns` (for example Terragrunt/Terraform execution roles).
+- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they receive dedicated write-only allow statements (`s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`) and are not added to the management bypass.
 
 ---
 
@@ -86,6 +90,7 @@ The profiles below are available for explicit scenario coverage in `examples/com
 |---|---|---|---|
 | `test.tfvars` | Baseline secure deployment | Secure defaults or explicit secure values (`enable_versioning=true`, `enable_lifecycle=true`, `enable_logging=true`, `enable_replication=true`) | VPC endpoint exists and is interface type; bucket exists; Lambda validation returns `200/403/403`; logging/replication/versioning/lifecycle resources are present |
 | `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure if `enable_logging=true` and target bucket policy permits logging writes | `aws_s3_bucket_logging.artifacts` targets external bucket; no auto-created logging bucket; bucket policy + transport controls still enforced; Lambda validation passes |
+| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure — `enable_logging=true`, target bucket policy permits only S3 logging service writes (scoped by source ARN + account) | `aws_s3_bucket_logging.artifacts` targets the self-managed `<name_prefix>-ext-log` bucket created by the example; no auto-created logging bucket inside root module; bucket policy + transport controls still enforced; Lambda validation passes |
 | `test.replication-alt-region.tfvars` | Validate replication destination override | Secure when replication remains enabled | Replication bucket/resources exist and use specified destination region; replication configuration remains active; Lambda validation passes |
 
 ### Exploratory profiles (not recommended for default policy gate)
@@ -341,5 +346,4 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | <a name="output_logging_bucket_arn"></a> [logging\_bucket\_arn](#output\_logging\_bucket\_arn) | ARN of the S3 logging bucket (if created). |
 | <a name="output_replication_bucket_name"></a> [replication\_bucket\_name](#output\_replication\_bucket\_name) | Name of the S3 replication destination bucket (if created). Receives replicated objects from the artifact bucket. |
 | <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the S3 replication destination bucket (if created). |
-| <a name="output_replication_bucket_private_base_url"></a> [replication\_bucket\_private\_base\_url](#output\_replication\_bucket\_private\_base\_url) | Bucket base URL for private access to the replication bucket over the S3 interface endpoint hostname. |
 <!-- END_TF_DOCS -->

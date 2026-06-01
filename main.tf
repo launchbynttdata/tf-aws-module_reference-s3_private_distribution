@@ -271,7 +271,7 @@ locals {
     ]
   )))
 
-  management_principal_arns = distinct(concat(
+  deployment_principal_arns = distinct(concat(
     var.pipeline_role_arns,
     var.management_principal_arns
   ))
@@ -283,19 +283,19 @@ locals {
   # policy drift from per-login session names.
   management_principal_arn_patterns = distinct(compact(concat(
     [
-      for arn in local.management_principal_arns :
+      for arn in var.management_principal_arns :
       startswith(arn, "arn:aws:sts::") ? null : arn
     ],
     [
-      for arn in local.management_principal_arns :
+      for arn in var.management_principal_arns :
       startswith(arn, "arn:aws:iam::") && strcontains(arn, ":role/") ? "${replace(replace(arn, ":iam::", ":sts::"), ":role/", ":assumed-role/")}/*" : null
     ],
     [
-      for arn in local.management_principal_arns :
+      for arn in var.management_principal_arns :
       startswith(arn, "arn:aws:sts::") && strcontains(arn, ":assumed-role/") ? "${join("/", slice(split("/", arn), 0, length(split("/", arn)) - 1))}/*" : null
     ],
     [
-      for arn in local.management_principal_arns :
+      for arn in var.management_principal_arns :
       startswith(arn, "arn:aws:sts::") && strcontains(arn, ":assumed-role/") ? replace(replace(join("/", slice(split("/", arn), 0, length(split("/", arn)) - 1)), ":sts::", ":iam::"), ":assumed-role/", ":role/") : null
     ]
   )))
@@ -494,7 +494,7 @@ locals {
 
   caller_is_trusted_management_principal = length(setintersection(
     toset(local.caller_principal_aliases),
-    toset(local.management_principal_arn_patterns)
+    toset(local.deployment_principal_arns)
   )) > 0
 }
 

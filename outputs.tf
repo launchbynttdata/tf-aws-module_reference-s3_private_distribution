@@ -55,8 +55,3 @@ output "replication_bucket_arn" {
   description = "ARN of the S3 replication destination bucket (if created)."
   value       = var.enable_replication ? module.replication_bucket[0].arn : null
 }
-
-output "replication_bucket_private_base_url" {
-  description = "Bucket base URL for private access to the replication bucket over the S3 interface endpoint hostname."
-  value       = var.enable_replication ? "https://${local.s3_vpce_bucket_host}/${module.replication_bucket[0].id}" : null
-}

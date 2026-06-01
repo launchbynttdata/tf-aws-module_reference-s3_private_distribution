@@ -220,8 +220,12 @@ terraform destroy -var-file=test.tfvars
 | [aws_iam_role_policy_attachment.lambda_vpc](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_lambda_function.validation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
 | [aws_s3_bucket.disallowed_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
+| [aws_s3_bucket.external_logging_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
+| [aws_s3_bucket_ownership_controls.external_logging_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_ownership_controls) | resource |
 | [aws_s3_bucket_policy.disallowed_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
+| [aws_s3_bucket_policy.external_logging_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
 | [aws_s3_bucket_public_access_block.disallowed_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_public_access_block) | resource |
+| [aws_s3_bucket_public_access_block.external_logging_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_public_access_block) | resource |
 | [aws_s3_object.disallowed_probe](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_object) | resource |
 | [aws_s3_object.sample_appinstaller](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_object) | resource |
 | [aws_vpc_security_group_egress_rule.lambda_https](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
@@ -253,7 +257,8 @@ terraform destroy -var-file=test.tfvars
 | <a name="input_lifecycle_noncurrent_version_expiration_days"></a> [lifecycle\_noncurrent\_version\_expiration\_days](#input\_lifecycle\_noncurrent\_version\_expiration\_days) | Days to retain noncurrent versions before expiration. | `number` | `30` | no |
 | <a name="input_lifecycle_incomplete_multipart_upload_days"></a> [lifecycle\_incomplete\_multipart\_upload\_days](#input\_lifecycle\_incomplete\_multipart\_upload\_days) | Days to retain incomplete multipart uploads. | `number` | `7` | no |
 | <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enable S3 access logging. | `bool` | `false` | no |
-| <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Target bucket for access logs. | `string` | `null` | no |
+| <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Target bucket for access logs. Mutually exclusive with use\_external\_logging\_target. | `string` | `null` | no |
+| <a name="input_use_external_logging_target"></a> [use\_external\_logging\_target](#input\_use\_external\_logging\_target) | When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name\_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. Use with test.external-logging-target.tfvars. | `bool` | `false` | no |
 | <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Prefix for access logs. | `string` | `"logs/"` | no |
 | <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable cross-region replication. | `bool` | `false` | no |
 | <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | Destination region for replication. | `string` | `null` | no |
@@ -265,9 +270,13 @@ terraform destroy -var-file=test.tfvars
 | ---- | ----------- |
 | <a name="output_lambda_function_name"></a> [lambda\_function\_name](#output\_lambda\_function\_name) | Name of the validation Lambda function |
 | <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name of the S3 artifact bucket |
+| <a name="output_s3_bucket_arn"></a> [s3\_bucket\_arn](#output\_s3\_bucket\_arn) | ARN of the S3 artifact bucket |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Bucket-style hostname for the S3 interface endpoint |
 | <a name="output_disallowed_bucket_name"></a> [disallowed\_bucket\_name](#output\_disallowed\_bucket\_name) | Name of the disallowed bucket (used for negative validation) |
 | <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID |
+| <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging target bucket (auto-created or externally supplied). Empty string when logging is disabled. |
+| <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the replication destination bucket. Empty string when replication is disabled. |
+| <a name="output_external_logging_target_bucket_name"></a> [external\_logging\_target\_bucket\_name](#output\_external\_logging\_target\_bucket\_name) | Name of the self-managed external logging target bucket created by this example. Referenced when use\_external\_logging\_target = true. |
 <!-- END_TF_DOCS -->

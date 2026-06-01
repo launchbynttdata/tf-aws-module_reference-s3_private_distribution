@@ -93,9 +93,15 @@ variable "enable_logging" {
 }
 
 variable "logging_target_bucket" {
-  description = "Target bucket for access logs."
+  description = "Target bucket for access logs. Mutually exclusive with use_external_logging_target."
   type        = string
   default     = null
+}
+
+variable "use_external_logging_target" {
+  description = "When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. Use with test.external-logging-target.tfvars."
+  type        = bool
+  default     = false
 }
 
 variable "logging_prefix" {

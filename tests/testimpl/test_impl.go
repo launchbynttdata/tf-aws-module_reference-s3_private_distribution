@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -40,6 +41,8 @@ type lambdaResponse struct {
 	Results    []validationResult `json:"results"`
 }
 
+const expectedPrimaryRegion = "us-east-2"
+
 // TestComposableComplete invokes the Lambda validation function to validate
 // private S3 access via the interface endpoint (network path only, no IAM).
 // It also registers a t.Cleanup that runs after terraform.Destroy to confirm
@@ -72,12 +75,14 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	bucketName := terraform.Output(t, tfOptions, "s3_bucket_name")
 	disallowedBucketName := terraform.Output(t, tfOptions, "disallowed_bucket_name")
 	functionName := terraform.Output(t, tfOptions, "lambda_function_name")
+	loggingBucketName := terraform.Output(t, tfOptions, "logging_bucket_name")
+	replicationBucketArn := terraform.Output(t, tfOptions, "replication_bucket_arn")
 
-	require.NotEmpty(t, region, "aws_region output must not be empty")
-	require.NotEmpty(t, endpointID, "s3_interface_vpce_id output must not be empty")
-	require.NotEmpty(t, bucketName, "s3_bucket_name output must not be empty")
-	require.NotEmpty(t, disallowedBucketName, "disallowed_bucket_name output must not be empty")
-	require.NotEmpty(t, functionName, "lambda_function_name output must not be empty")
+	assert.Equal(t, expectedPrimaryRegion, region, "aws_region should match the test profile region")
+	assert.True(t, strings.HasPrefix(endpointID, "vpce-"), "s3_interface_vpce_id should look like an AWS VPC endpoint id")
+	assert.True(t, strings.HasPrefix(bucketName, "msix-s3-bucket-complete-") && strings.HasSuffix(bucketName, "-artifacts"), "s3_bucket_name should use the complete example naming pattern")
+	assert.True(t, strings.HasPrefix(disallowedBucketName, "msix-s3-bucket-complete-disallowed-"), "disallowed_bucket_name should use the complete example naming pattern")
+	assert.True(t, strings.HasPrefix(functionName, "msix-s3-bucket-complete-s3-probe-"), "lambda_function_name should use the complete example naming pattern")
 
 	awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
 	require.NoError(t, err, "failed to load AWS SDK config")
@@ -99,21 +104,12 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 		Bucket: aws.String(bucketName),
 	})
 	require.NoError(t, err, "failed to get bucket policy for %s", bucketName)
-	require.NotEmpty(t, aws.ToString(bucketPolicyOut.Policy), "bucket policy JSON should not be empty")
-	assert.Contains(t, aws.ToString(bucketPolicyOut.Policy), "DenyAccessOutsideVPCEndpoint", "bucket policy should include VPCE deny statement")
-	assert.NotContains(t, aws.ToString(bucketPolicyOut.Policy), "aws:PrincipalAccount", "bucket policy must not include broad same-account bypass conditions")
+	policyJSON := aws.ToString(bucketPolicyOut.Policy)
+	require.Contains(t, policyJSON, "DenyAccessOutsideVPCEndpoint", "bucket policy should include VPCE deny statement")
+	require.NotContains(t, policyJSON, "aws:PrincipalAccount", "bucket policy must not include broad same-account bypass conditions")
 
-	// TODO: implement — verify logging target wiring
-	// When enable_logging = true, assert that the artifact bucket has server access logging
-	// enabled and the target bucket name matches the logging_bucket_name Terraform output.
-	// Use s3Client.GetBucketLogging(bucketName) and compare to
-	// terraform.Output(t, tfOptions, "logging_bucket_name").
-
-	// TODO: implement — verify replication configuration presence
-	// When enable_replication = true, assert that the artifact bucket has a replication
-	// configuration and the destination bucket ARN matches the replication_bucket_arn output.
-	// Use s3Client.GetBucketReplication(bucketName) and compare to
-	// terraform.Output(t, tfOptions, "replication_bucket_arn").
+	verifyBucketLoggingConfiguration(t, s3Client, bucketName, loggingBucketName)
+	verifyBucketReplicationConfiguration(t, s3Client, bucketName, replicationBucketArn)
 
 	return validationContext{
 		region:               region,
@@ -177,6 +173,43 @@ func assertExpectedValidationStatuses(t *testing.T, results []validationResult) 
 	for name := range expected {
 		require.Truef(t, seen[name], "validation result missing expected check %s", name)
 	}
+}
+
+func verifyBucketLoggingConfiguration(t *testing.T, s3Client *s3.Client, bucketName string, expectedTargetBucket string) {
+	t.Helper()
+
+	loggingOut, err := s3Client.GetBucketLogging(context.Background(), &s3.GetBucketLoggingInput{
+		Bucket: aws.String(bucketName),
+	})
+	require.NoError(t, err, "failed to get bucket logging for %s", bucketName)
+
+	if expectedTargetBucket == "" {
+		require.Nil(t, loggingOut.LoggingEnabled, "bucket logging should be disabled when no logging target bucket is configured")
+		return
+	}
+
+	require.NotNil(t, loggingOut.LoggingEnabled, "bucket logging should be enabled when a logging target bucket is configured")
+	assert.Equal(t, expectedTargetBucket, aws.ToString(loggingOut.LoggingEnabled.TargetBucket), "logging target bucket should match Terraform output")
+	assert.True(t, strings.HasSuffix(aws.ToString(loggingOut.LoggingEnabled.TargetPrefix), "logs/"), "logging prefix should end with logs/")
+}
+
+func verifyBucketReplicationConfiguration(t *testing.T, s3Client *s3.Client, bucketName string, expectedDestinationArn string) {
+	t.Helper()
+
+	replicationOut, err := s3Client.GetBucketReplication(context.Background(), &s3.GetBucketReplicationInput{
+		Bucket: aws.String(bucketName),
+	})
+
+	if expectedDestinationArn == "" {
+		require.Error(t, err, "bucket replication should be absent when replication is disabled")
+		return
+	}
+
+	require.NoError(t, err, "failed to get bucket replication for %s", bucketName)
+	require.NotNil(t, replicationOut.ReplicationConfiguration, "bucket replication should be configured when replication is enabled")
+	require.NotEmpty(t, replicationOut.ReplicationConfiguration.Rules, "replication configuration should contain at least one rule")
+	require.NotNil(t, replicationOut.ReplicationConfiguration.Rules[0].Destination, "replication rule should contain a destination")
+	assert.Equal(t, expectedDestinationArn, aws.ToString(replicationOut.ReplicationConfiguration.Rules[0].Destination.Bucket), "replication destination ARN should match Terraform output")
 }
 
 // verifyResourcesDestroyed is called via t.Cleanup after terraform.Destroy.
