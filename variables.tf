@@ -122,7 +122,7 @@ variable "management_principal_arns" {
 }
 
 variable "pipeline_role_arns" {
-  description = "IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail."
+  description = "IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket via dedicated Allow statements. Pipeline roles do NOT receive the broader management bypass (s3:*) — they are scoped to write operations only. Each role generates a distinct policy statement for CloudTrail visibility."
   type        = list(string)
   default     = []
 

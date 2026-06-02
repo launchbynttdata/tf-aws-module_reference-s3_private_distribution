@@ -79,10 +79,10 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	replicationBucketArn := terraform.Output(t, tfOptions, "replication_bucket_arn")
 
 	assert.Equal(t, expectedPrimaryRegion, region, "aws_region should match the test profile region")
-	assert.True(t, strings.HasPrefix(endpointID, "vpce-"), "s3_interface_vpce_id should look like an AWS VPC endpoint id")
+	assert.Regexp(t, `^vpce-[0-9a-f]{17}$`, endpointID, "s3_interface_vpce_id should be a valid VPC endpoint ID format")
 	assert.True(t, strings.HasPrefix(bucketName, "msix-s3-bucket-complete-") && strings.HasSuffix(bucketName, "-artifacts"), "s3_bucket_name should use the complete example naming pattern")
 	assert.True(t, strings.HasPrefix(disallowedBucketName, "msix-s3-bucket-complete-disallowed-"), "disallowed_bucket_name should use the complete example naming pattern")
-	assert.True(t, strings.HasPrefix(functionName, "msix-s3-bucket-complete-s3-probe-"), "lambda_function_name should use the complete example naming pattern")
+	assert.Regexp(t, `^msix-s3-bucket-complete-s3-probe-[0-9a-f]{4}$`, functionName, "lambda_function_name should use the complete example naming pattern")
 
 	awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
 	require.NoError(t, err, "failed to load AWS SDK config")

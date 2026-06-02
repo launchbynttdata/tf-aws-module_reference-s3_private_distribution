@@ -44,19 +44,15 @@ Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpo
 > S3 interface endpoints mask the client's true source IP with the endpoint ENI's private IP. `aws:SourceIp` conditions in bucket policies are unreliable over PrivateLink. Subnet-level network controls (security groups, route tables, NACLs) enforce the actual network boundary — the bucket policy trusts the endpoint identity, not the source IP.
 
 ### Pipeline Write Statements (dynamic)
-If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Pipeline roles do not receive the broader management bypass.
-### Pipeline Write Statements (dynamic)
-If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`.
+If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Pipeline roles do **not** receive the broader management bypass — they are scoped to write operations only.
 
 ### Management Access Model
 
 - There is no broad same-account bypass.
 - Requests outside the interface endpoint are denied unless the principal ARN matches management patterns derived from `management_principal_arns`.
-- Terraform/CI operators that run outside the VPCE path should be listed explicitly in `management_principal_arns` (for example Terragrunt/Terraform execution roles).
-- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they receive only the dedicated write allow statements.
-- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they do not get the broader management allow.
-- Terraform/CI operators that run outside the VPCE path should be listed explicitly in `management_principal_arns` (for example Terragrunt/Terraform execution roles).
-- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they receive dedicated write-only allow statements (`s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`) and are not added to the management bypass.
+- Terraform/CI operators that run outside the VPCE path should be listed explicitly in `management_principal_arns` (for example Terragrunt/Terraform execution roles). These principals receive full `s3:*` access.
+- Pipeline roles that need bucket writes should be listed in `pipeline_role_arns`; they receive only the dedicated write allow statements and are **not** added to the management bypass.
+- The lockout guard (`enforce_deployer_principal_check`) validates the deployer against *both* sets to prevent accidental self-lockout during apply.
 
 ---
 
@@ -189,6 +185,65 @@ When replication is enabled, it is configured with:
 - Full object tagging and metadata replication
 - Output variables expose the destination bucket name and ARN
 
+### Multi-Region Client Access (Redundant VPCE for Replica Bucket)
+
+By default, replication creates a **data-protection copy** in another region — it is not client-accessible via PrivateLink. To make the replica bucket available to clients in the DR region, you need a **second module call** with its own networking stack.
+
+**What's required in the DR region:**
+- A VPC with private subnets (same pattern as the primary region)
+- Security groups allowing HTTPS (443) inbound from consumer subnets
+- Route tables keeping traffic private (no IGW/NAT required for S3 PrivateLink)
+
+**Pattern — two module calls, one per region:**
+
+```hcl
+# Primary region — creates artifact bucket + replication + VPCE
+module "primary_distribution" {
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+
+  vpc_id                  = module.primary_vpc.vpc_id
+  vpce_subnet_ids         = module.primary_private_subnets[*].subnet_id
+  vpce_security_group_ids = [module.primary_vpce_sg.id]
+  aws_region              = "us-east-2"
+
+  enable_replication             = true
+  replication_destination_region = "us-west-2"
+
+  management_principal_arns = var.management_principal_arns
+  pipeline_role_arns        = var.pipeline_role_arns
+}
+
+# DR region — creates a second VPCE pointed at the replica bucket
+# This makes replicated artifacts readable by clients in the DR region.
+module "dr_distribution" {
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  providers = {
+    aws = aws.dr_region
+  }
+
+  vpc_id                  = module.dr_vpc.vpc_id
+  vpce_subnet_ids         = module.dr_private_subnets[*].subnet_id
+  vpce_security_group_ids = [module.dr_vpce_sg.id]
+  aws_region              = "us-west-2"
+
+  # The DR instance does NOT create its own artifact bucket or replication —
+  # it serves the replica bucket created by the primary module call.
+  enable_replication = false
+  enable_logging     = true
+
+  # Point the VPCE allowlist at the replica bucket from the primary module
+  additional_vpce_allowed_bucket_arns = [module.primary_distribution.replication_bucket_arn]
+
+  management_principal_arns = var.management_principal_arns
+}
+```
+
+**Key considerations:**
+- The DR module call creates its own VPCE and bucket (which may be unused or serve as a warm-standby write target). The critical piece is `additional_vpce_allowed_bucket_arns` pointing to the replica bucket so the VPCE endpoint policy permits reads.
+- The replica bucket's policy (created by the primary module) only allows the S3 replication service. You would need to **extend the replica bucket policy** to also allow `s3:GetObject` via the DR-region VPCE — this is not yet automated in the module and would require a policy update outside the primary module call or a future module enhancement.
+- Cross-region networking (Transit Gateway, VPC peering) is **not required** for this pattern — each region has its own independent VPCE talking to S3 regional endpoints. The replication is handled server-side by AWS.
+- This pattern is currently **not implemented as an example** in this repository due to the additional complexity of managing multi-region provider configurations and the replica bucket policy extension. It is documented here as the intended future path.
+
 ### CloudTrail Object-Level Data Events
 
 For comprehensive audit trails of individual S3 GetObject and PutObject operations, configure **CloudTrail data events** at the organization or management account level:
@@ -320,7 +375,7 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix applied to all resources created by this module. | `string` | `"msix-s3"` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Optional additional S3 bucket ARNs allowed through the interface endpoint policy. The artifact bucket is always included. | `list(string)` | `[]` | no |
 | <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Terraform/CI principal ARNs allowed to bypass the VPCE-only deny path. Supports IAM role/user ARNs and STS assumed-role ARNs. Provide explicit trusted principals (for example Terragrunt/Terraform execution role and CI pipeline roles). | `list(string)` | `[]` | no |
-| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket. Each generates a distinct Allow statement so the access is visible in CloudTrail. | `list(string)` | `[]` | no |
+| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket via dedicated Allow statements. Pipeline roles do NOT receive the broader management bypass (s3:*) — they are scoped to write operations only. Each role generates a distinct policy statement for CloudTrail visibility. | `list(string)` | `[]` | no |
 | <a name="input_enforce_deployer_principal_check"></a> [enforce\_deployer\_principal\_check](#input\_enforce\_deployer\_principal\_check) | If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted management principal pattern. Prevents accidental Terraform/CI lockout from bucket policy restrictions. | `bool` | `true` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 artifact bucket. Defaults to true for data protection. | `bool` | `true` | no |
 | <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the S3 artifact bucket to expire old versions and clean up incomplete multipart uploads. | `bool` | `true` | no |
