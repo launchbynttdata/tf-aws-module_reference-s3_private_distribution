@@ -51,7 +51,7 @@ func TestComposableComplete(t *testing.T, ctx types.TestContext) {
 	validation := verifyInfrastructureReadOnly(t, ctx)
 
 	// t.Cleanup fires after internalRunSetupTestTeardown (and its deferred
-	// terraform.Destroy) returns — i.e., post-destroy.  Capture the values
+	// terraform.Destroy) returns - i.e., post-destroy.  Capture the values
 	// we need now so the closure doesn't depend on live Terraform state.
 	t.Cleanup(func() {
 		verifyResourcesDestroyed(t, validation)

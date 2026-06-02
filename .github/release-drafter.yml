@@ -14,10 +14,10 @@ categories:
   - title: ":warning: Breaking Changes"
     labels:
       - "major"
-  - title: "🚀 Features"
+  - title: "[rocket] Features"
     labels:
       - "minor"
-  - title: "🔧 Fixes"
+  - title: "[wrench] Fixes"
     collapse-after: 3
     labels:
       - "patch"

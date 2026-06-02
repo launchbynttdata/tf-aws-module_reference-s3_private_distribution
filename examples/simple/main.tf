@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
-# Simple Example — Minimal Test Harness
+# Simple Example - Minimal Test Harness
 #
-# Validates the s3-bucket collection module with the minimum required inputs
+# Validates the private distribution bucket collection module with the minimum required inputs
 # and secure-by-default configuration:
 #   - Single-AZ private subnet for endpoint ENIs
 #   - No NAT gateway (endpoint-only egress model)
@@ -9,9 +9,9 @@
 #   - All bucket policy defaults enforced (VPCE-only reads, HTTPS-only)
 #
 # Harness resource migration path:
-#   aws_vpc              → tf-aws-module_primitive-vpc
-#   aws_subnet           → tf-aws-module_primitive-subnet
-#   aws_security_group   → tf-aws-module_primitive-security_group +
+#   aws_vpc              -> tf-aws-module_primitive-vpc
+#   aws_subnet           -> tf-aws-module_primitive-subnet
+#   aws_security_group   -> tf-aws-module_primitive-security_group +
 #                           tf-aws-module_primitive-vpc_security_group_ingress_rule +
 #                           tf-aws-module_primitive-vpc_security_group_egress_rule
 # ---------------------------------------------------------------------------
@@ -109,18 +109,18 @@ resource "aws_security_group" "vpce" {
 }
 
 # ---------------------------------------------------------------------------
-# S3 PrivateLink Collection Module
+# Private Distribution Bucket Collection Module
 # ---------------------------------------------------------------------------
 
 module "s3_privatelink" {
-  source = "../.." # the s3-bucket collection module root
+  source = "../.." # private distribution bucket collection module root
 
-  # Required — networking context
+  # Required - networking context
   vpc_id                  = aws_vpc.main.id
   vpce_subnet_ids         = [aws_subnet.private.id]
   vpce_security_group_ids = [aws_security_group.vpce.id]
 
-  # Required — region
+  # Required - region
   aws_region  = var.aws_region
   name_prefix = var.name_prefix
 

@@ -1,7 +1,7 @@
 aws_region  = "us-east-2"
 name_prefix = "msix-s3-no-ver"
 
-# Exploratory profile — versioning intentionally disabled.
+# Exploratory profile - versioning intentionally disabled.
 # Replication is co-disabled because S3 replication requires versioning on
 # the source bucket. Enabling replication with versioning off would be
 # rejected by AWS and is now caught at plan time by a lifecycle precondition

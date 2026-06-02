@@ -35,7 +35,7 @@ RM ?= rm -rf
 TFLINT ?= tflint
 
 # ------------------------------------------------------------------------------
-# Variables — Golang
+# Variables - Golang
 # ------------------------------------------------------------------------------
 
 GO_TEST_DIRECTORIES ?= tests
@@ -53,7 +53,7 @@ CURRENT_DIR = $(notdir $(shell pwd))
 export ARM_SUBSCRIPTION_ID ?= $(shell command -v az >/dev/null 2>&1 && az account show 2>/dev/null | jq -r .id)
 
 # ------------------------------------------------------------------------------
-# Variables — Terraform module
+# Variables - Terraform module
 # ------------------------------------------------------------------------------
 
 ALL_TF_MODULES = $(shell $(call list_terraform_modules))
@@ -64,7 +64,7 @@ AWS_PROFILE ?= default
 AWS_REGION ?= us-east-2
 
 # ------------------------------------------------------------------------------
-# Functions — Golang
+# Functions - Golang
 # ------------------------------------------------------------------------------
 
 # Checks for Go files in the GO_TEST_DIRECTORIES. If they exist, runs the default configuration for golangci-lint
@@ -81,7 +81,7 @@ define go_test
 endef
 
 # ------------------------------------------------------------------------------
-# Functions — Terraform module
+# Functions - Terraform module
 # ------------------------------------------------------------------------------
 
 define check_terraform_fmt
@@ -201,7 +201,7 @@ define banner_end
 endef
 
 # ==============================================================================
-# Targets — Setup / Configuration
+# Targets - Setup / Configuration
 # ==============================================================================
 
 .PHONY: configure-dependencies
@@ -235,7 +235,7 @@ clean:
 	$(MAKE) tfmodule/clean
 
 # ==============================================================================
-# Targets — Check / Lint / Test (base double-colon rules)
+# Targets - Check / Lint / Test (base double-colon rules)
 # ==============================================================================
 
 .PHONY: check
@@ -256,7 +256,7 @@ test::
 	@true
 
 # ==============================================================================
-# Targets — Golang
+# Targets - Golang
 # ==============================================================================
 
 .PHONY: go/test/environment/az
@@ -329,7 +329,7 @@ test:: tfmodule/plan
 	$(call banner_end,test,Go test phase complete)
 
 # ==============================================================================
-# Targets — Terraform module
+# Targets - Terraform module
 # ==============================================================================
 
 .PHONY: tfmodule/all

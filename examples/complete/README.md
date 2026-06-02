@@ -1,4 +1,4 @@
-# Complete Example — Lambda-Based Validation
+# Complete Example - Lambda-Based Validation
 
 This complete example deploys a private validation harness for the private distribution bucket collection module.
 
@@ -37,9 +37,9 @@ The complete example calls the module under test from this repository root. The 
 module "s3_privatelink" {
   source = "../.."
 
-  vpc_id                  = aws_vpc.main.id
-  vpce_subnet_ids         = [for s in aws_subnet.app_private : s.id]
-  vpce_security_group_ids = [aws_security_group.vpce.id]
+  vpc_id                  = module.vpc.vpc_id
+  vpce_subnet_ids         = [for s in module.private_subnets : s.subnet_id]
+  vpce_security_group_ids = [module.s3_vpce_sg.id]
 
   aws_region           = var.aws_region
   name_prefix          = var.name_prefix
@@ -47,7 +47,7 @@ module "s3_privatelink" {
   vpce_ip_address_type = var.vpce_ip_address_type
   vpce_dns_options     = var.vpce_dns_options
 
-  management_principal_arns            = local.effective_management_principal_arns
+  management_principal_arns           = local.effective_management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
   additional_vpce_allowed_bucket_arns = []
 
@@ -56,7 +56,7 @@ module "s3_privatelink" {
   lifecycle_noncurrent_version_expiration_days = var.lifecycle_noncurrent_version_expiration_days
   lifecycle_incomplete_multipart_upload_days   = var.lifecycle_incomplete_multipart_upload_days
   enable_logging                               = var.enable_logging
-  logging_target_bucket                        = var.logging_target_bucket
+  logging_target_bucket                        = local.effective_logging_target_bucket
   logging_prefix                               = var.logging_prefix
   enable_replication                           = var.enable_replication
   replication_destination_region               = var.replication_destination_region
@@ -96,7 +96,7 @@ This command:
 
 Region defaults used by the test profile are `aws_region = us-east-2` and `replication_destination_region = us-west-1`.
 
-**Expected duration**: ~35–45 minutes total. The test harness runs two full `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`). VPC interface endpoint ENI provisioning is the largest single contributor (~5–8 min); versioned S3 bucket destruction accounts for most of teardown time.
+**Expected duration**: ~35-45 minutes total. The test harness runs two full `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`). VPC interface endpoint ENI provisioning is the largest single contributor (~5-8 min); versioned S3 bucket destruction accounts for most of teardown time.
 
 **Manual validation** (if needed during development):
 
@@ -135,9 +135,9 @@ Profile files for this example and expected validation intent:
 
 The Lambda function tests three scenarios:
 
-1. **Valid existing object** → HTTP `200` (artifact bucket, valid object key)
-2. **Invalid/missing object** → HTTP `403` (artifact bucket, non-existent object key)
-3. **Disallowed bucket** → HTTP `403` (disallowed bucket, even if object exists)
+1. **Valid existing object** -> HTTP `200` (artifact bucket, valid object key)
+2. **Invalid/missing object** -> HTTP `403` (artifact bucket, non-existent object key)
+3. **Disallowed bucket** -> HTTP `403` (disallowed bucket, even if object exists)
 
 Each result is captured and reported in JSON format by the Lambda function:
 

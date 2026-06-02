@@ -1,10 +1,10 @@
 # ---------------------------------------------------------------------------
-# Terraform Test Scaffold — Exploratory Profile Plan Gates
+# Terraform Test Scaffold - Exploratory Profile Plan Gates
 #
 # These tests validate that each intentionally-relaxed configuration profile
 # produces a valid Terraform plan without errors. They are NOT full
 # apply+destroy cycles. Security posture assertions for these profiles are
-# intentionally omitted — see tests/post_deploy_functional for full validation.
+# intentionally omitted - see tests/post_deploy_functional for full validation.
 #
 # Run with:
 #   terraform test -chdir=examples/complete

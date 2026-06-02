@@ -43,7 +43,7 @@ module "artifacts_bucket" {
   ignore_public_acls                 = true
   block_public_policy                = false
   restrict_public_buckets            = false
-  # Logging wired below via aws_s3_bucket_logging — collection module logging var not used here
+  # Logging wired below via aws_s3_bucket_logging - collection module logging var not used here
   # because we need conditional target switching (auto-created vs external)
   tags = merge(local.tags, { Name = "${local.base_name}-artifacts" })
 }
@@ -367,7 +367,8 @@ locals {
   #
   # Design goals:
   #   - Clients in allowed subnets can read artifacts ONLY via the S3 interface endpoint (PrivateLink)
-  #   - Management principals (Terraform, pipelines) can access the bucket directly (not restricted to endpoint)
+  #   - Management principals can access the bucket directly (not restricted to endpoint)
+  #   - Pipeline principals receive dedicated direct write permissions via separate statements
   #   - All access requires HTTPS (no insecure transport)
   #   - Subnet-level isolation is the primary security boundary (not SourceIp)
   #
@@ -386,7 +387,7 @@ locals {
   #
   #   2. AllowClientReadViaVPCEndpoint
   #      - Permits GetObject when source is the interface endpoint
-  #      - No additional conditions (SourceIp, IP range) — endpoint traffic is sufficient
+  #      - No additional conditions (SourceIp, IP range) - endpoint traffic is sufficient
   #      - Clients outside this endpoint are caught by the Deny statement above
   #
   #   3. AllowManagementAccess

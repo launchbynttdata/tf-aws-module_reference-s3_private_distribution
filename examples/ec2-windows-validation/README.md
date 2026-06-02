@@ -3,7 +3,7 @@
 Manual-use reference harness that validates end-to-end private S3 access from
 a Windows Server 2022 instance via SSM Run Command (no public internet path).
 
-**⚠️ This example is NOT part of the automated test suite.** Automated testing now uses the `examples/complete/` example, which deploys a Lambda function for faster, simpler network-path-only validation.
+**[warning] This example is NOT part of the automated test suite.** Automated testing now uses the `examples/complete/` example, which deploys a Lambda function for faster, simpler network-path-only validation.
 
 **Use this example when**: You need to manually verify Windows-to-S3 endpoint connectivity in your own account, or you're debugging SSM/Session Manager behavior.
 
@@ -18,7 +18,7 @@ a Windows Server 2022 instance via SSM Run Command (no public internet path).
 terraform init
 terraform apply -var-file test.tfvars
 
-# Wait for the Windows instance to appear Online in SSM (typically 5–15 minutes).
+# Wait for the Windows instance to appear Online in SSM (typically 5-15 minutes).
 # Check status:
 aws ssm describe-instance-information \
   --region us-east-2 \
@@ -41,7 +41,7 @@ aws ssm get-command-invocation \
 
 All SSM endpoints and the Windows instance are placed in `local.primary_az`
 (the first available AZ). The S3 interface endpoint spans two AZs via the
-`app_private_subnets`. No IGW or NAT — all AWS API traffic flows via VPC
+`app_private_subnets`. No IGW or NAT - all AWS API traffic flows via VPC
 interface endpoints.
 
 ## Validation Probes

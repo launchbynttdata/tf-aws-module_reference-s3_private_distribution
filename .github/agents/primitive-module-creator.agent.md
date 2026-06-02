@@ -11,19 +11,21 @@ This document provides context and instructions for AI coding assistants working
 
 ## Changelog
 
-- **1.8** – Added guidance from iterative module creation: Terraform reserved variable names (avoid `source`, `target`), resource naming module API (instance_env/instance_resource are numbers; cloud_resource_type must be alphanumeric), validation block null handling (use ternary), provider schema verification for outputs, example outputs must match test expectations, Regula/Conftest pre-check, go mod tidy for new SDK deps, common Regula rules (e.g., SQS+KMS). Added requirement to run full example validation flow (tflint, init, validate, plan, apply, destroy) before implementing tests. Added Terratest / Go code quality review (golangci-lint, go get -u ./..., go mod tidy, go build) before running tests. Added account-scoped unique resource guidance (KMS aliases must use random suffix to avoid parallel/sequential collision).
-- **1.7** – Strengthened frequently-violated requirements based on multi-model trial feedback: added Critical Requirements Checklist, added WRONG/RIGHT examples for test assertions and functional vs readonly tests, added explicit example README accuracy requirements with examples, strengthened security verification requirements, added Pre-Submission Validation Checklist, expanded Makefile skeleton cleanup, clarified output `id` description for resources where id equals another attribute.
-- **1.6** – Strengthened guidance based on trial feedback: added explicit skeleton TODO/placeholder cleanup, readonly test differentiation, terraform-docs generation step, output description requirement, input validation requirements for bounded numerics, mutually exclusive parameter handling, security-first example defaults (KMS/Regula), output naming convention, and example completeness expectations.
-- **1.5** – Added notes about security-first defaults and checking files for references to skeleton and templates during cleanup.
-- **1.4** – Fixed version header (block must come first to be recognized as an agent)
-- **1.3** – Added agent header, migrated to agents folder, added skeleton cleanup checklist.
-- **1.2** – Fixed resource naming module usage: `for_each = var.resource_names_map` (not a module input), correct variable name `class_env` (not `environment`), added required `cloud_resource_type`/`maximum_length` params, corrected output reference syntax to `module.resource_names["key"].format`, noted hyphens-stripping for AWS regions
-- **1.1** – Added cloud provider API verification patterns (Azure, AWS, GCP) to Terratest guidance; tests must now verify real resource state via provider SDKs, not just Terraform outputs
-- **1.0** – Initial release
+- **1.8** - Added guidance from iterative module creation: Terraform reserved variable names (avoid `source`, `target`), resource naming module API (instance_env/instance_resource are numbers; cloud_resource_type must be alphanumeric), validation block null handling (use ternary), provider schema verification for outputs, example outputs must match test expectations, Regula/Conftest pre-check, go mod tidy for new SDK deps, common Regula rules (e.g., SQS+KMS). Added requirement to run full example validation flow (tflint, init, validate, plan, apply, destroy) before implementing tests. Added Terratest / Go code quality review (golangci-lint, go get -u ./..., go mod tidy, go build) before running tests. Added account-scoped unique resource guidance (KMS aliases must use random suffix to avoid parallel/sequential collision).
+- **1.7** - Strengthened frequently-violated requirements based on multi-model trial feedback: added Critical Requirements Checklist, added WRONG/RIGHT examples for test assertions and functional vs readonly tests, added explicit example README accuracy requirements with examples, strengthened security verification requirements, added Pre-Submission Validation Checklist, expanded Makefile skeleton cleanup, clarified output `id` description for resources where id equals another attribute.
+- **1.6** - Strengthened guidance based on trial feedback: added explicit skeleton TODO/placeholder cleanup, readonly test differentiation, terraform-docs generation step, output description requirement, input validation requirements for bounded numerics, mutually exclusive parameter handling, security-first example defaults (KMS/Regula), output naming convention, and example completeness expectations.
+- **1.5** - Added notes about security-first defaults and checking files for references to skeleton and templates during cleanup.
+- **1.4** - Fixed version header (block must come first to be recognized as an agent)
+- **1.3** - Added agent header, migrated to agents folder, added skeleton cleanup checklist.
+- **1.2** - Fixed resource naming module usage: `for_each = var.resource_names_map` (not a module input), correct variable name `class_env` (not `environment`), added required `cloud_resource_type`/`maximum_length` params, corrected output reference syntax to `module.resource_names["key"].format`, noted hyphens-stripping for AWS regions
+- **1.1** - Added cloud provider API verification patterns (Azure, AWS, GCP) to Terratest guidance; tests must now verify real resource state via provider SDKs, not just Terraform outputs
+- **1.0** - Initial release
 
-> **For agents working in the skeleton repo (`lcaf-skeleton-terraform`):** If you modify this file, update the `<!-- version -->` comment at the top and add a changelog entry here. Bump the minor version (e.g. 1.1 → 1.2) for new guidance or clarifications; bump the major version (e.g. 1.x → 2.0) for changes that would require significant rework of existing modules.
+> **For agents working in the skeleton repo (`lcaf-skeleton-terraform`):** If you modify this file, update the `<!-- version -->` comment at the top and add a changelog entry here. Bump the minor version (e.g. 1.1 -> 1.2) for new guidance or clarifications; bump the major version (e.g. 1.x -> 2.0) for changes that would require significant rework of existing modules.
 
-> **Maintenance rule — keep guidance generic.** This guide applies to ALL primitive modules across all cloud providers, not just the resource type used in any particular experiment. When updating this file, do not embed service-specific attribute names (e.g., `VisibilityTimeout`, `KmsMasterKeyId`, `BucketName`) into patterns meant to be universal. If a concrete example helps clarify a pattern, show one per cloud provider and label each clearly (e.g., "Azure example," "AWS example," "GCP example"). Prefer generic placeholders like `<resource-specific attribute>` in WRONG/RIGHT comparisons and checklists.
+> **Maintenance rule - keep guidance generic.** This guide applies to ALL primitive modules across all cloud providers, not just the resource type used in any particular experiment. When updating this file, do not embed service-specific attribute names (e.g., `VisibilityTimeout`, `KmsMasterKeyId`, `BucketName`) into patterns meant to be universal. If a concrete example helps clarify a pattern, show one per cloud provider and label each clearly (e.g., "Azure example," "AWS example," "GCP example"). Prefer generic placeholders like `<resource-specific attribute>` in WRONG/RIGHT comparisons and checklists.
+
+> **Encoding rule - ASCII only.** Follow `.github/instructions/ascii-only-content.instructions.md` for all edits in this repository. Do not introduce emoji or Unicode punctuation in docs/comments/config text; keep identifiers and endpoint-related strings ASCII-safe for tooling and AWS integration compatibility.
 
 ## Overview
 
@@ -39,13 +41,13 @@ You are most likely helping create or modify a **primitive module**.
 
 ## Critical Requirements Checklist
 
-> **These are the most frequently violated requirements.** Every item below has been missed by AI agents in testing. Treat each as a hard requirement — failure on any of these is considered a High-severity defect.
+> **These are the most frequently violated requirements.** Every item below has been missed by AI agents in testing. Treat each as a hard requirement - failure on any of these is considered a High-severity defect.
 
 1. **Tests MUST assert specific expected values, not just non-emptiness.** Do NOT write `assert.NotEmpty(t, someAttribute)`. Instead write `assert.Equal(t, expectedValue, result.Attributes["<attribute>"])` with the actual expected value for your resource. See [Testing Standards: Specific Value Assertions](#specific-value-assertions) for WRONG/RIGHT examples.
 
 2. **Functional and readonly tests MUST be meaningfully different.** The functional test must include write operations that exercise the resource (e.g., writing data, invoking a function). The readonly test must only read/verify. They must call different test implementation functions. NEVER copy `post_deploy_functional/main_test.go` into `post_deploy_functional_readonly/` unchanged. See [Functional vs Readonly Tests](#functional-vs-readonly-tests).
 
-3. **Security settings MUST be verified via the cloud API in tests.** If the module configures encryption, the test must assert that encryption is enabled via the provider SDK — not just check that a Terraform output is non-empty. Use `require` (not a conditional `if ok`) to ensure the security attribute is present. See [Security Verification in Tests](#security-verification-in-tests).
+3. **Security settings MUST be verified via the cloud API in tests.** If the module configures encryption, the test must assert that encryption is enabled via the provider SDK - not just check that a Terraform output is non-empty. Use `require` (not a conditional `if ok`) to ensure the security attribute is present. See [Security Verification in Tests](#security-verification-in-tests).
 
 4. **README.md TODO placeholders MUST be removed.** Search for `TODO:` in ALL files. The skeleton's `TODO: INSERT DOC LINK ABOUT HOOKS` is the most common missed placeholder. Either replace with real content or remove the TODO text entirely.
 
@@ -55,11 +57,11 @@ You are most likely helping create or modify a **primitive module**.
 
 7. **The example MUST pass through ALL root module variables.** Every variable in the root `variables.tf` must appear in `examples/complete/variables.tf` and be passed to the module call in `examples/complete/main.tf`. Mutually exclusive variables (e.g., `name` vs `name_prefix`) should both be defined with appropriate defaults (`null` for the one not used).
 
-8. **The example MUST use the most secure configuration.** If the organization's Regula/OPA policies would flag a security concern (e.g., encryption should use customer-managed keys rather than provider-managed defaults), the example must demonstrate the secure pattern (e.g., create a KMS/CMEK key module and pass it). The example is the reference implementation. Run `make check` (or Regula/Conftest) before considering the module complete — common rules include: AWS SQS queues require KMS encryption (FG_R00070); S3 buckets require encryption; etc.
+8. **The example MUST use the most secure configuration.** If the organization's Regula/OPA policies would flag a security concern (e.g., encryption should use customer-managed keys rather than provider-managed defaults), the example must demonstrate the secure pattern (e.g., create a KMS/CMEK key module and pass it). The example is the reference implementation. Run `make check` (or Regula/Conftest) before considering the module complete - common rules include: AWS SQS queues require KMS encryption (FG_R00070); S3 buckets require encryption; etc.
 
 9. **Skeleton remnants MUST be completely removed.** This includes: Makefile `init-clean` target with `TEMPLATED_README.md` references, skeleton comments in `tests/testimpl/types.go`, TODO placeholders in README.md, and all references to `lcaf-skeleton-terraform` outside of `.github/agents/`. See [Skeleton Cleanup Checklist](#skeleton-cleanup-checklist).
 
-10. **Output `id` description must be accurate.** For resources where `id` equals another attribute (e.g., a queue's `id` is the same as its `url`, or a storage account's `id` is the full ARM resource path), use a clarifying description like `"The ID of the resource (same as the <other attribute>)."` — do not use the exact same description for both outputs.
+10. **Output `id` description must be accurate.** For resources where `id` equals another attribute (e.g., a queue's `id` is the same as its `url`, or a storage account's `id` is the full ARM resource path), use a clarifying description like `"The ID of the resource (same as the <other attribute>)."` - do not use the exact same description for both outputs.
 
 ## Cloud Providers Supported
 
@@ -73,7 +75,7 @@ You are most likely helping create or modify a **primitive module**.
 
 ### Primitive Module Pattern
 ```
-Single Resource → Single Module → Maximum Reusability
+Single Resource -> Single Module -> Maximum Reusability
 ```
 
 **Rules:**
@@ -98,33 +100,33 @@ A primitive module for `azurerm_storage_account` contains ONLY that resource. A 
 Every primitive module must have this structure:
 ```
 tf-<provider>-module_primitive-<resource>/
-├── .github/workflows/      # CI/CD (optional but recommended)
-├── examples/
-│   └── complete/           # REQUIRED: Full working example
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       ├── provider.tf    # Provider configuration, delivered by the Makefile. Don't touch this file.
-│       └── README.md
-│       └── versions.tf
-├── tests/                  # Note: "tests" not "test"
-│   ├── complete_test.go    # REQUIRED: Terratest
-│   └── fixtures/           # Test data if needed
-├── main.tf                 # REQUIRED: Resource definition
-├── variables.tf            # REQUIRED: Input variables
-├── outputs.tf              # REQUIRED: Output values
-├── versions.tf             # REQUIRED: Version constraints
-├── README.md               # REQUIRED: Documentation
-├── Makefile                # REQUIRED: Standard targets
-├── go.mod                  # Go dependencies for Terratest
-├── go.sum                  # Go dependency checksums
-├── LICENSE                 # Apache 2.0
-├── NOTICE                  # Copyright notice
-├── CODEOWNERS              # GitHub code owners
-├── .gitignore              # Standard ignores
-├── .tool-versions          # asdf tool versions
-├── .lcafenv                # Launch CAF environment config
-└── .secrets.baseline       # Detect-secrets baseline
+|-- .github/workflows/      # CI/CD (optional but recommended)
+|-- examples/
+|   `-- complete/           # REQUIRED: Full working example
+|       |-- main.tf
+|       |-- variables.tf
+|       |-- outputs.tf
+|       |-- provider.tf    # Provider configuration, delivered by the Makefile. Don't touch this file.
+|       `-- README.md
+|       `-- versions.tf
+|-- tests/                  # Note: "tests" not "test"
+|   |-- complete_test.go    # REQUIRED: Terratest
+|   `-- fixtures/           # Test data if needed
+|-- main.tf                 # REQUIRED: Resource definition
+|-- variables.tf            # REQUIRED: Input variables
+|-- outputs.tf              # REQUIRED: Output values
+|-- versions.tf             # REQUIRED: Version constraints
+|-- README.md               # REQUIRED: Documentation
+|-- Makefile                # REQUIRED: Standard targets
+|-- go.mod                  # Go dependencies for Terratest
+|-- go.sum                  # Go dependency checksums
+|-- LICENSE                 # Apache 2.0
+|-- NOTICE                  # Copyright notice
+|-- CODEOWNERS              # GitHub code owners
+|-- .gitignore              # Standard ignores
+|-- .tool-versions          # asdf tool versions
+|-- .lcafenv                # Launch CAF environment config
+`-- .secrets.baseline       # Detect-secrets baseline
 ```
 
 ## Naming Conventions
@@ -161,11 +163,11 @@ resource "google_storage_bucket" "bucket" {
 ```
 
 **Pattern:** Use short, descriptive name that matches the resource type
-- `azurerm_postgresql_flexible_server` → `postgres`
-- `azurerm_redis_cache` → `redis`
-- `aws_s3_bucket` → `bucket`
-- `aws_lambda_function` → `lambda` or `function`
-- `google_storage_bucket` → `bucket`
+- `azurerm_postgresql_flexible_server` -> `postgres`
+- `azurerm_redis_cache` -> `redis`
+- `aws_s3_bucket` -> `bucket`
+- `aws_lambda_function` -> `lambda` or `function`
+- `google_storage_bucket` -> `bucket`
 
 **Do NOT use "this"** - use descriptive names instead
 
@@ -174,7 +176,7 @@ resource "google_storage_bucket" "bucket" {
 - Be descriptive but concise
 - Match provider argument names where possible
 - Group related variables with comment headers
-- **Avoid Terraform reserved names:** Do NOT use `source`, `target`, `version`, `count`, `for`, or `provider` as variable names — they have special meaning in Terraform. Use alternatives (e.g., `source_arn`, `target_arn`, `source_uri`).
+- **Avoid Terraform reserved names:** Do NOT use `source`, `target`, `version`, `count`, `for`, or `provider` as variable names - they have special meaning in Terraform. Use alternatives (e.g., `source_arn`, `target_arn`, `source_uri`).
 
 ## Code Standards
 
@@ -380,7 +382,7 @@ resource "aws_s3_bucket_versioning" "bucket" {
 - No data sources unless essential
 - **AWS-specific:** Often uses separate resources instead of nested blocks
 
-**Feature completeness:** A primitive module must expose ALL commonly-used attributes of the resource as variables. "Commonly-used" means any attribute that a typical production deployment would configure. Consult the Terraform provider documentation for the resource and expose every non-deprecated, non-computed argument. Optional attributes should default to `null` so they are omitted from the API call unless explicitly set. Do NOT create a minimal wrapper — the primitive must be a comprehensive, production-ready resource wrapper.
+**Feature completeness:** A primitive module must expose ALL commonly-used attributes of the resource as variables. "Commonly-used" means any attribute that a typical production deployment would configure. Consult the Terraform provider documentation for the resource and expose every non-deprecated, non-computed argument. Optional attributes should default to `null` so they are omitted from the API call unless explicitly set. Do NOT create a minimal wrapper - the primitive must be a comprehensive, production-ready resource wrapper.
 
 ### outputs.tf
 
@@ -424,7 +426,7 @@ output "primary_endpoint" {
 - Export enough for composition, but not necessarily everything
 - No complete resource object output
 - **Provider-specific outputs:** ARNs (AWS), FQDNs (Azure), etc.
-- **Output naming:** Use short, generic names without resource-type prefixes. Use `id`, `arn`, `name`, `url` — NOT `queue_id`, `queue_arn`, etc. The module context already implies the resource type.
+- **Output naming:** Use short, generic names without resource-type prefixes. Use `id`, `arn`, `name`, `url` - NOT `queue_id`, `queue_arn`, etc. The module context already implies the resource type.
 - **Output `id` description:** Some cloud resources return the same value for `id` and another attribute. When this happens, do NOT give the `id` output the same description as the other output. Instead, clarify the overlap: `"The ID of the resource (same as the <other attribute>)."` This prevents confusion when consumers see two outputs with identical descriptions.
 - **Verify outputs exist in provider schema:** Before adding an output, confirm the attribute exists on the resource in the Terraform provider. Not all API attributes are exposed (e.g., some resources omit `current_state`). Check the provider documentation or run `terraform state show` on a test resource. Do NOT output attributes that the provider does not expose.
 
@@ -572,12 +574,12 @@ GCP uses `labels` instead of `tags` in most resources.
 **Standard structure (all providers):**
 ```
 examples/complete/
-├── main.tf          # Module usage
-├── variables.tf     # Example variables
-├── outputs.tf       # Pass-through outputs
-├── provider.tf     # Provider configuration, delivered by the Makefile. Don't touch this file.
-└── README.md        # Example documentation
-└── versions.tf
+|-- main.tf          # Module usage
+|-- variables.tf     # Example variables
+|-- outputs.tf       # Pass-through outputs
+|-- provider.tf     # Provider configuration, delivered by the Makefile. Don't touch this file.
+`-- README.md        # Example documentation
+`-- versions.tf
 ```
 
 **Example main.tf pattern:**
@@ -610,9 +612,9 @@ module "resource_names" {
 
 **Resource naming module API (critical):** The `resource_name` module has specific type requirements. Verify against the module's `variables.tf` before using:
 
-- **`instance_env`** — Type `number` (0–999), NOT string. Use `1` or `0` in test.tfvars, not `"dev"`.
-- **`instance_resource`** — Type `number` (0–100), NOT string. Use `1` or `0` in test.tfvars, not `"pipe"`.
-- **`cloud_resource_type`** — Must be **alphanumeric only** (letters and numbers). No underscores, hyphens, or special characters. Use `"iamrole1"`, `"sqsqueue1"`, `"pipe1"` — NOT `"iam_role"`, `"sqs_queue"`, or `"pipe"`.
+- **`instance_env`** - Type `number` (0-999), NOT string. Use `1` or `0` in test.tfvars, not `"dev"`.
+- **`instance_resource`** - Type `number` (0-100), NOT string. Use `1` or `0` in test.tfvars, not `"pipe"`.
+- **`cloud_resource_type`** - Must be **alphanumeric only** (letters and numbers). No underscores, hyphens, or special characters. Use `"iamrole1"`, `"sqsqueue1"`, `"pipe1"` - NOT `"iam_role"`, `"sqs_queue"`, or `"pipe"`.
 
 ```hcl
 # Reference names by map key and desired output format:
@@ -653,10 +655,10 @@ module "postgres" {  # or "bucket", "lambda", etc.
 - Create required dependencies (resource group for Azure)
 - Use `source = "../.."` to reference parent module
 - Pass through variables, minimal hardcoding
-- **The example must demonstrate ALL module variables** — every variable defined in the root module's `variables.tf` should be passed through in the example. This ensures the example serves as complete documentation and that all features are tested.
-- **Security-first example defaults:** The example's `test.tfvars` and `variables.tf` defaults must use the MOST SECURE configuration option. If the organization's Regula/OPA policies flag a security concern (e.g., encryption should use customer-managed keys, not provider-managed defaults), the example must demonstrate the secure pattern (e.g., create a KMS/CMEK key module and pass it). The example is the reference implementation — it must pass all organizational policy checks without warnings.
-- **Regula/Conftest:** Run `make check` before finalizing. Common Regula rules: AWS SQS queues require KMS encryption (FG_R00070) — add `aws_kms_key` and `kms_master_key_id` to queues; S3 buckets require encryption; RDS/DynamoDB encryption. If the example creates these resources, configure them with customer-managed KMS keys.
-- **Account-scoped unique resources (e.g., AWS KMS aliases):** Resources like `aws_kms_alias` have names that are unique per AWS account. Do NOT hardcode the alias name (e.g., `alias/example-sqs-enc`) — parallel tests or sequential runs will collide ("already exists" on create, "does not exist" on delete). Use a random suffix (e.g., `random_string` + `alias/example-sqs-enc-${random_string.suffix.result}`) or the resource naming module with uniqueness.
+- **The example must demonstrate ALL module variables** - every variable defined in the root module's `variables.tf` should be passed through in the example. This ensures the example serves as complete documentation and that all features are tested.
+- **Security-first example defaults:** The example's `test.tfvars` and `variables.tf` defaults must use the MOST SECURE configuration option. If the organization's Regula/OPA policies flag a security concern (e.g., encryption should use customer-managed keys, not provider-managed defaults), the example must demonstrate the secure pattern (e.g., create a KMS/CMEK key module and pass it). The example is the reference implementation - it must pass all organizational policy checks without warnings.
+- **Regula/Conftest:** Run `make check` before finalizing. Common Regula rules: AWS SQS queues require KMS encryption (FG_R00070) - add `aws_kms_key` and `kms_master_key_id` to queues; S3 buckets require encryption; RDS/DynamoDB encryption. If the example creates these resources, configure them with customer-managed KMS keys.
+- **Account-scoped unique resources (e.g., AWS KMS aliases):** Resources like `aws_kms_alias` have names that are unique per AWS account. Do NOT hardcode the alias name (e.g., `alias/example-sqs-enc`) - parallel tests or sequential runs will collide ("already exists" on create, "does not exist" on delete). Use a random suffix (e.g., `random_string` + `alias/example-sqs-enc-${random_string.suffix.result}`) or the resource naming module with uniqueness.
 - **The example's README.md** must accurately reflect the actual `main.tf` code. The usage snippet and Inputs table must match the real example code exactly. Do not write a simplified snippet that omits variables. See [Example README Accuracy](#example-readme-accuracy) for details.
 
 ### Full Example Validation Flow (Before Implementing Tests)
@@ -665,33 +667,33 @@ module "postgres" {  # or "bucket", "lambda", etc.
 
 After creating `examples/complete/` (including `main.tf`, `variables.tf`, `outputs.tf`, `versions.tf`, `test.tfvars`), run the full validation flow **from the repository root**:
 
-1. **tflint** — Lint the example:
+1. **tflint** - Lint the example:
    ```bash
    make lint
    ```
 
-2. **init** — Initialize Terraform in the example directory:
+2. **init** - Initialize Terraform in the example directory:
    ```bash
    cd examples/complete && terraform init
    ```
 
-3. **validate** — Validate configuration:
+3. **validate** - Validate configuration:
    ```bash
    cd examples/complete && terraform validate
    ```
 
-4. **plan** — Run plan with test.tfvars:
+4. **plan** - Run plan with test.tfvars:
    ```bash
    cd examples/complete && terraform plan -var-file=test.tfvars
    ```
 
-5. **apply** — Deploy the example (requires cloud provider credentials):
+5. **apply** - Deploy the example (requires cloud provider credentials):
    ```bash
    cd examples/complete && terraform apply -var-file=test.tfvars -auto-approve
    ```
    The user must ensure cloud provider credentials are available (e.g., AWS profile, Azure service principal, GCP service account). If the agent cannot interact with the API due to credential issues, prompt the user to fix credentials and retry.
 
-6. **destroy** — Tear down:
+6. **destroy** - Tear down:
    ```bash
    cd examples/complete && terraform destroy -var-file=test.tfvars -auto-approve
    ```
@@ -882,16 +884,16 @@ func TestResourceComplete(t *testing.T) {
 - Use the provider SDK directly for resources not covered by terratest helpers
 - Assert on specific configuration values (SKU, version, location, encryption settings), not just non-emptiness
 - Read credentials/region from environment variables; fail clearly if required env vars are missing
-- **Security settings must be verified via the cloud API.** If the module has security-related defaults (encryption, access policies, TLS settings, etc.), the test MUST assert those settings are correctly applied via the provider SDK. For example, if the module enables encryption by default, the test must verify the encryption attribute via the cloud API — not just check that a Terraform output is non-empty.
+- **Security settings must be verified via the cloud API.** If the module has security-related defaults (encryption, access policies, TLS settings, etc.), the test MUST assert those settings are correctly applied via the provider SDK. For example, if the module enables encryption by default, the test must verify the encryption attribute via the cloud API - not just check that a Terraform output is non-empty.
 
 ### Specific Value Assertions
 
 > **This is the #1 most common test defect.** Models consistently write `assert.NotEmpty` when they should write `assert.Equal` with a specific expected value. This defeats the purpose of the test.
 
-**WRONG — asserting non-emptiness (will pass even if the value is wrong):**
+**WRONG - asserting non-emptiness (will pass even if the value is wrong):**
 ```go
 // BAD: These assertions prove nothing about correctness
-// (shown with generic attribute names — replace with your resource's actual attributes)
+// (shown with generic attribute names - replace with your resource's actual attributes)
 attr1 := result.Attributes["<resource-specific attribute>"]
 assert.NotEmpty(t, attr1, "Attribute should be set")
 
@@ -899,7 +901,7 @@ attr2 := result.Attributes["<another attribute>"]
 assert.NotEmpty(t, attr2, "Attribute should be set")
 ```
 
-**RIGHT — asserting specific expected values:**
+**RIGHT - asserting specific expected values:**
 ```go
 // GOOD: These assertions verify the module correctly applied configuration
 // AWS example (S3 bucket):
@@ -917,9 +919,9 @@ assert.Equal(t, expectedKeyID, actualKeyID, "Encryption key should match Terrafo
 
 ### Security Verification in Tests
 
-> **Do NOT use conditional `if ok` patterns for security attributes.** This causes the test to silently pass when the security attribute is missing entirely — which is the exact failure case you need to catch.
+> **Do NOT use conditional `if ok` patterns for security attributes.** This causes the test to silently pass when the security attribute is missing entirely - which is the exact failure case you need to catch.
 
-**WRONG — conditional check that silently passes on missing attribute:**
+**WRONG - conditional check that silently passes on missing attribute:**
 ```go
 // BAD: If the security attribute is absent (encryption not configured), the test silently passes
 if encryptionKey, ok := result.Attributes["<encryption attribute>"]; ok {
@@ -927,11 +929,11 @@ if encryptionKey, ok := result.Attributes["<encryption attribute>"]; ok {
 }
 ```
 
-**RIGHT — mandatory check that fails if attribute is missing:**
+**RIGHT - mandatory check that fails if attribute is missing:**
 ```go
 // GOOD: Test fails if encryption is not configured (attribute missing)
 encryptionKey, ok := result.Attributes["<encryption attribute>"]
-require.True(t, ok, "Encryption attribute must be present — encryption may not be configured")
+require.True(t, ok, "Encryption attribute must be present - encryption may not be configured")
 assert.NotEmpty(t, encryptionKey, "Encryption key should be set")
 
 // EVEN BETTER: Compare against the expected key from Terraform output
@@ -939,17 +941,17 @@ expectedKeyId := terraform.Output(t, ctx.TerratestTerraformOptions(), "encryptio
 assert.Equal(t, expectedKeyId, encryptionKey, "Encryption key should match the key provisioned by Terraform")
 ```
 
-This pattern applies to any security attribute — encryption keys, TLS settings, access policies, etc. Replace `<encryption attribute>` with your resource's actual attribute name.
+This pattern applies to any security attribute - encryption keys, TLS settings, access policies, etc. Replace `<encryption attribute>` with your resource's actual attribute name.
 
 ### Functional vs Readonly Tests
 
 The skeleton provides two test directories:
-- `tests/post_deploy_functional/` — Full lifecycle test: creates infrastructure, runs assertions (including write operations that exercise the resource), then destroys.
-- `tests/post_deploy_functional_readonly/` — Read-only verification: assumes infrastructure already exists, performs ONLY read operations (API queries, attribute checks). **Must NOT write data, create resources, or modify state.**
+- `tests/post_deploy_functional/` - Full lifecycle test: creates infrastructure, runs assertions (including write operations that exercise the resource), then destroys.
+- `tests/post_deploy_functional_readonly/` - Read-only verification: assumes infrastructure already exists, performs ONLY read operations (API queries, attribute checks). **Must NOT write data, create resources, or modify state.**
 
 > **This is one of the most commonly violated requirements.** Models frequently produce byte-for-byte identical test files, or tests that call the same implementation function. Both test directories must call DIFFERENT test implementation functions in `tests/testimpl/`.
 
-**WRONG — both test files are identical:**
+**WRONG - both test files are identical:**
 ```go
 // tests/post_deploy_functional/main_test.go
 func TestComplete(t *testing.T) {
@@ -962,7 +964,7 @@ func TestComplete(t *testing.T) {
 }
 ```
 
-**RIGHT — each test file calls a different implementation function:**
+**RIGHT - each test file calls a different implementation function:**
 ```go
 // tests/post_deploy_functional/main_test.go
 func TestComplete(t *testing.T) {
@@ -976,8 +978,8 @@ func TestComplete(t *testing.T) {
 ```
 
 **What makes them different in `tests/testimpl/test_impl.go`:**
-- `TestComposableComplete` — Verifies Terraform outputs, calls cloud API to check configuration, AND performs write operations that exercise the resource (e.g., writing an object to a bucket, inserting a record into a database, invoking a function, etc.)
-- `TestComposableCompleteReadonly` — Verifies Terraform outputs and calls cloud API to check configuration ONLY. No write operations. Focused on verifying resource existence, attributes, and security settings via read-only API calls.
+- `TestComposableComplete` - Verifies Terraform outputs, calls cloud API to check configuration, AND performs write operations that exercise the resource (e.g., writing an object to a bucket, inserting a record into a database, invoking a function, etc.)
+- `TestComposableCompleteReadonly` - Verifies Terraform outputs and calls cloud API to check configuration ONLY. No write operations. Focused on verifying resource existence, attributes, and security settings via read-only API calls.
 
 ### Terratest / Go Code Quality Review (Before Running Tests)
 
@@ -985,23 +987,23 @@ func TestComplete(t *testing.T) {
 
 After writing or updating test code in `tests/`, run the following **from the repository root**:
 
-1. **golangci-lint** — Lint Go code:
+1. **golangci-lint** - Lint Go code:
    ```bash
    golangci-lint run ./...
    ```
    Or use pre-commit: `pre-commit run golangci-lint --all-files`
 
-2. **go get -u ./...** — Update dependencies to latest compatible versions:
+2. **go get -u ./...** - Update dependencies to latest compatible versions:
    ```bash
    go get -u ./...
    ```
 
-3. **go mod tidy** — Prune unused dependencies and update `go.sum`:
+3. **go mod tidy** - Prune unused dependencies and update `go.sum`:
    ```bash
    go mod tidy
    ```
 
-4. **go build** — Verify the test code compiles:
+4. **go build** - Verify the test code compiles:
    ```bash
    go build ./...
    ```
@@ -1057,7 +1059,7 @@ docs: ## Generate documentation
 - Create abstractions over provider resources
 - Make assumptions about use cases
 - Mix provider resource patterns (e.g., AWS nested blocks like Azure)
-- Create a minimal wrapper with only a few variables — expose ALL commonly-used resource attributes
+- Create a minimal wrapper with only a few variables - expose ALL commonly-used resource attributes
 - Leave TODO placeholders or skeleton comments in any file (search ALL `.md` and `.go` files for `TODO:` and `skeleton`)
 - Copy the functional test into the readonly test directory unchanged (they MUST call different functions)
 - Leave the terraform-docs section empty in README.md (populate it before finalizing)
@@ -1152,26 +1154,26 @@ When asked to create a new primitive module, follow this process:
 When transforming the skeleton into a new primitive module, complete ALL of these steps:
 
 ### Files to Remove or Transform
-- [ ] **TEMPLATED_README.md** → Delete after incorporating relevant content into README.md
-- [ ] **Only one Terraform Check CI workflow can be present** (`.github/workflows/pull-request-terraform-check-*.yml`) → Remove Azure for AWS module, remove AWS for Azure module, etc. Keep the one that matches your provider.
-- [ ] **`examples/with_cake/`** → Delete skeleton example directory
+- [ ] **TEMPLATED_README.md** -> Delete after incorporating relevant content into README.md
+- [ ] **Only one Terraform Check CI workflow can be present** (`.github/workflows/pull-request-terraform-check-*.yml`) -> Remove Azure for AWS module, remove AWS for Azure module, etc. Keep the one that matches your provider.
+- [ ] **`examples/with_cake/`** -> Delete skeleton example directory
 
 ### Files to Update
-- [ ] **`go.mod`** → Update the `lcaf-skeleton-terraform` portion of the `github.com/launchbynttdata/lcaf-skeleton-terraform` header to your module name
-- [ ] **Test imports** → Update all Go import paths to match new `go.mod` module path
-- [ ] **CI workflow skeleton guard** → Remove the `if: github.repository != 'launchbynttdata/lcaf-skeleton-terraform'` condition from all workflow files
-- [ ] **README.md** → Replace Azure-specific references (ARM_CLIENT_ID, azure_env.sh, azurerm provider) with provider-appropriate content
+- [ ] **`go.mod`** -> Update the `lcaf-skeleton-terraform` portion of the `github.com/launchbynttdata/lcaf-skeleton-terraform` header to your module name
+- [ ] **Test imports** -> Update all Go import paths to match new `go.mod` module path
+- [ ] **CI workflow skeleton guard** -> Remove the `if: github.repository != 'launchbynttdata/lcaf-skeleton-terraform'` condition from all workflow files
+- [ ] **README.md** -> Replace Azure-specific references (ARM_CLIENT_ID, azure_env.sh, azurerm provider) with provider-appropriate content
 
 ### Placeholders and TODOs to Remove
-- [ ] **README.md TODO placeholders** → Search for `TODO:` in ALL `.md` files (root README.md AND `examples/complete/README.md`) and either replace with actual content or remove the TODO text. The most commonly missed placeholder is `TODO: INSERT DOC LINK ABOUT HOOKS` in the detect-secrets-hook section of the root README.md. **This is missed in ~40% of trials — search explicitly.**
-- [ ] **Skeleton comments in test code** → Check `tests/testimpl/types.go` and other test files for comments referencing "skeleton" (e.g., `"Empty: there are no settings for the skeleton module."`). Update these to reference the actual module name.
-- [ ] **Run `go mod tidy`** → After updating `go.mod` and adding new test dependencies (e.g., `github.com/aws/aws-sdk-go-v2/service/<service>` for AWS API verification), run `go mod tidy` to update `go.sum`. Missing `go.sum` entries cause `typecheck` lint failures. Run from repo root: `go mod tidy`.
+- [ ] **README.md TODO placeholders** -> Search for `TODO:` in ALL `.md` files (root README.md AND `examples/complete/README.md`) and either replace with actual content or remove the TODO text. The most commonly missed placeholder is `TODO: INSERT DOC LINK ABOUT HOOKS` in the detect-secrets-hook section of the root README.md. **This is missed in ~40% of trials - search explicitly.**
+- [ ] **Skeleton comments in test code** -> Check `tests/testimpl/types.go` and other test files for comments referencing "skeleton" (e.g., `"Empty: there are no settings for the skeleton module."`). Update these to reference the actual module name.
+- [ ] **Run `go mod tidy`** -> After updating `go.mod` and adding new test dependencies (e.g., `github.com/aws/aws-sdk-go-v2/service/<service>` for AWS API verification), run `go mod tidy` to update `go.sum`. Missing `go.sum` entries cause `typecheck` lint failures. Run from repo root: `go mod tidy`.
 
 ### Makefile Cleanup
-- [ ] **Makefile `init-clean` target** → The skeleton Makefile contains an `init-clean` target with logic to rename `TEMPLATED_README.md` to `README.MD`. This is a skeleton-specific target. While it is guarded by a file existence check and harmless, it should be removed or cleaned up for a production module. At minimum, remove the `TEMPLATED_README.md` handling block.
+- [ ] **Makefile `init-clean` target** -> The skeleton Makefile contains an `init-clean` target with logic to rename `TEMPLATED_README.md` to `README.MD`. This is a skeleton-specific target. While it is guarded by a file existence check and harmless, it should be removed or cleaned up for a production module. At minimum, remove the `TEMPLATED_README.md` handling block.
 
 ### Tests to Differentiate
-- [ ] **`tests/post_deploy_functional_readonly/main_test.go`** → This file MUST be different from `tests/post_deploy_functional/main_test.go`. The readonly test must call a readonly-specific test function that performs only read operations (no message sends, no resource creation). See the "Functional vs Readonly Tests" section above.
+- [ ] **`tests/post_deploy_functional_readonly/main_test.go`** -> This file MUST be different from `tests/post_deploy_functional/main_test.go`. The readonly test must call a readonly-specific test function that performs only read operations (no message sends, no resource creation). See the "Functional vs Readonly Tests" section above.
 
 ## Pre-Submission Validation Checklist
 
@@ -1198,7 +1200,7 @@ Before considering the module complete, walk through EVERY item below. Each item
 - [ ] Does every bounded numerical variable have a `validation {}` block?
 - [ ] Are mutually exclusive parameters handled with conditionals in `main.tf` or validation blocks?
 - [ ] Do validation blocks for optional (null-able) variables use ternary to avoid null evaluation? (e.g., `var.x == null ? true : (length(var.x) ...)`)
-- [ ] Do all outputs reference attributes that exist in the provider schema? (Verify in provider docs — e.g., `current_state` may not exist on all resources.)
+- [ ] Do all outputs reference attributes that exist in the provider schema? (Verify in provider docs - e.g., `current_state` may not exist on all resources.)
 - [ ] Do all outputs have short `description` fields?
 - [ ] Are output names generic (e.g., `id`, `arn`, `name`) without resource-type prefixes?
 - [ ] If `id` equals another attribute (like `url`), does the `id` description clarify the overlap?

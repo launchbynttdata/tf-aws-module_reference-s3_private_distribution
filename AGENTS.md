@@ -21,7 +21,7 @@ When guidance conflicts, follow explicit user instructions first, then document 
 
 ## Required Files
 
-- **`.golangci.yaml`** — Go linter configuration. MUST be tracked in git (not gitignored). Required for `make lint` to work after cloning the repository.
+- **`.golangci.yaml`** - Go linter configuration. MUST be tracked in git (not gitignored). Required for `make lint` to work after cloning the repository.
 
 ## Blocking Review Checklist
 

@@ -12,7 +12,7 @@
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Required — networking context provided by the caller
+# Required - networking context provided by the caller
 # ---------------------------------------------------------------------------
 
 variable "vpc_id" {
@@ -44,7 +44,7 @@ variable "vpce_security_group_ids" {
 }
 
 # ---------------------------------------------------------------------------
-# Required — region (drives service name construction)
+# Required - region (drives service name construction)
 # ---------------------------------------------------------------------------
 
 variable "aws_region" {
@@ -54,7 +54,7 @@ variable "aws_region" {
 }
 
 # ---------------------------------------------------------------------------
-# Optional — endpoint behavior tuning (pass-through to primitive module)
+# Optional - endpoint behavior tuning (pass-through to primitive module)
 # ---------------------------------------------------------------------------
 
 variable "vpce_auto_accept" {
@@ -94,7 +94,7 @@ variable "name_prefix" {
 }
 
 # ---------------------------------------------------------------------------
-# Access policy — S3 endpoint policy
+# Access policy - S3 endpoint policy
 # ---------------------------------------------------------------------------
 
 variable "additional_vpce_allowed_bucket_arns" {
@@ -104,7 +104,7 @@ variable "additional_vpce_allowed_bucket_arns" {
 }
 
 # ---------------------------------------------------------------------------
-# Access policy — S3 bucket policy principals
+# Access policy - S3 bucket policy principals
 # ---------------------------------------------------------------------------
 
 variable "management_principal_arns" {
@@ -122,7 +122,7 @@ variable "management_principal_arns" {
 }
 
 variable "pipeline_role_arns" {
-  description = "IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket via dedicated Allow statements. Pipeline roles do NOT receive the broader management bypass (s3:*) — they are scoped to write operations only. Each role generates a distinct policy statement for CloudTrail visibility."
+  description = "IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket via dedicated Allow statements. Pipeline roles do NOT receive the broader management bypass (s3:*) - they are scoped to write operations only. Each role generates a distinct policy statement for CloudTrail visibility."
   type        = list(string)
   default     = []
 
@@ -136,7 +136,7 @@ variable "pipeline_role_arns" {
 }
 
 variable "enforce_deployer_principal_check" {
-  description = "If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted management principal pattern. Prevents accidental Terraform/CI lockout from bucket policy restrictions."
+  description = "If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted principal in management_principal_arns or pipeline_role_arns. Prevents accidental Terraform/CI lockout from bucket policy restrictions."
   type        = bool
   default     = true
 }

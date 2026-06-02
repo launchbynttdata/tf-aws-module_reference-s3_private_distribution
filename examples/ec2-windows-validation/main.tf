@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# EC2 Windows Validation Example — Manual Use Only
+# EC2 Windows Validation Example - Manual Use Only
 #
 # Deploys a single-AZ Windows Server instance alongside the S3 PrivateLink
 # module to validate private access via SSM Run Command (PowerShell).
@@ -189,7 +189,7 @@ module "ssm_endpoints_sg_ingress" {
 }
 
 # ---------------------------------------------------------------------------
-# SSM Interface Endpoints — single-AZ (client_subnet only)
+# SSM Interface Endpoints - single-AZ (client_subnet only)
 # Placing all three endpoints in the same subnet as the Windows instance
 # avoids DuplicateSubnetsInSameZone and ensures the SSM path is reachable.
 # ---------------------------------------------------------------------------
@@ -365,7 +365,7 @@ resource "aws_s3_object" "disallowed_probe" {
 }
 
 # ---------------------------------------------------------------------------
-# SSM Validation Document — invoke manually with send-command
+# SSM Validation Document - invoke manually with send-command
 # ---------------------------------------------------------------------------
 
 locals {

@@ -28,23 +28,23 @@ The intended standalone repository identity is `tf-aws-module_collection-private
 
 The artifacts bucket policy enforces private access through a layered model. Three statement groups are applied in order of evaluation:
 
-### Statement 1 — `DenyInsecureTransport`
+### Statement 1 - `DenyInsecureTransport`
 Denies all S3 actions unconditionally unless `aws:SecureTransport = true`. Applies to every principal and request type with no exceptions.
 
-### Statement 2 — `DenyAccessOutsideVPCEndpoint`
+### Statement 2 - `DenyAccessOutsideVPCEndpoint`
 Denies key S3 read/write actions (`GetObject`, `ListBucket`, `PutObject`, `DeleteObject`, etc.) unless the request arrives through the managed S3 interface VPC endpoint (`aws:SourceVpce`).
 
 An explicit bypass can be granted only for configured management principals via `management_principal_arns`. Bypass matching uses wildcard-compatible `aws:PrincipalArn` patterns so IAM Identity Center STS sessions match reliably.
 
-### Statement 3 — `AllowClientReadViaVPCEndpoint`
+### Statement 3 - `AllowClientReadViaVPCEndpoint`
 Explicitly allows `s3:GetObject` when `aws:SourceVpce` matches the managed endpoint and transport is secure. This is the primary distribution read path for artifact consumers inside allowed subnets.
 
 > **Why not `aws:SourceIp` conditions?**
 >
-> S3 interface endpoints mask the client's true source IP with the endpoint ENI's private IP. `aws:SourceIp` conditions in bucket policies are unreliable over PrivateLink. Subnet-level network controls (security groups, route tables, NACLs) enforce the actual network boundary — the bucket policy trusts the endpoint identity, not the source IP.
+> S3 interface endpoints mask the client's true source IP with the endpoint ENI's private IP. `aws:SourceIp` conditions in bucket policies are unreliable over PrivateLink. Subnet-level network controls (security groups, route tables, NACLs) enforce the actual network boundary - the bucket policy trusts the endpoint identity, not the source IP.
 
 ### Pipeline Write Statements (dynamic)
-If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Pipeline roles do **not** receive the broader management bypass — they are scoped to write operations only.
+If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` statement for `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket`. Pipeline roles do **not** receive the broader management bypass - they are scoped to write operations only.
 
 ### Management Access Model
 
@@ -60,7 +60,7 @@ If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` 
 
 Required files and setup:
 
-- **`.golangci.yaml`** — Go linter configuration. This file is tracked in git and required for `make lint` to work. Do not add it to `.gitignore`.
+- **`.golangci.yaml`** - Go linter configuration. This file is tracked in git and required for `make lint` to work. Do not add it to `.gitignore`.
 - Run `make configure` to install dependencies and set up pre-commit hooks.
 - Run `make lint` to validate the module before testing.
 
@@ -70,7 +70,7 @@ Required files and setup:
 - `make test` currently uses composed double-colon stages in the Makefile, so you will see staged provider generation/planning banners and an additional plan stage in output.
 - Post-deploy tests invoke a Lambda function deployed in private subnets to validate S3 endpoint access via network-path-only conditions (no IAM credentials).
 - Test region defaults are pinned for quota stability: primary deployment in `us-east-2`, replication destination in `us-west-1`.
-- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~35–45 minutes. The test harness runs two sequential `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`), which accounts for the majority of the time beyond a single apply+destroy.
+- `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~35-45 minutes. The test harness runs two sequential `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`), which accounts for the majority of the time beyond a single apply+destroy.
 - `make go/readonly_test` runs readonly/non-destructive Go verification against existing infrastructure.
 - `tests/terraform/scaffold.tftest.hcl` runs `terraform test` plan-only profile checks. It is not wired into `make test` and does not require deployed infrastructure.
 - **Post-destroy verification**: After `terraform destroy`, the Go test suite automatically verifies that the artifacts bucket, disallowed bucket, and Lambda function are actually absent in AWS (`tests/testimpl/test_impl.go: verifyResourcesDestroyed` via `t.Cleanup`).
@@ -85,8 +85,7 @@ The profiles below are available for explicit scenario coverage in `examples/com
 | Profile | Intent | Security posture | Expected assertions |
 |---|---|---|---|
 | `test.tfvars` | Baseline secure deployment | Secure defaults or explicit secure values (`enable_versioning=true`, `enable_lifecycle=true`, `enable_logging=true`, `enable_replication=true`) | VPC endpoint exists and is interface type; bucket exists; Lambda validation returns `200/403/403`; logging/replication/versioning/lifecycle resources are present |
-| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure if `enable_logging=true` and target bucket policy permits logging writes | `aws_s3_bucket_logging.artifacts` targets external bucket; no auto-created logging bucket; bucket policy + transport controls still enforced; Lambda validation passes |
-| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure — `enable_logging=true`, target bucket policy permits only S3 logging service writes (scoped by source ARN + account) | `aws_s3_bucket_logging.artifacts` targets the self-managed `<name_prefix>-ext-log` bucket created by the example; no auto-created logging bucket inside root module; bucket policy + transport controls still enforced; Lambda validation passes |
+| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure - `enable_logging=true`, target bucket policy permits only S3 logging service writes (scoped by source ARN + account) | `aws_s3_bucket_logging.artifacts` targets the self-managed `<name_prefix>-ext-log` bucket created by the example; no auto-created logging bucket inside root module; bucket policy + transport controls still enforced; Lambda validation passes |
 | `test.replication-alt-region.tfvars` | Validate replication destination override | Secure when replication remains enabled | Replication bucket/resources exist and use specified destination region; replication configuration remains active; Lambda validation passes |
 
 ### Exploratory profiles (not recommended for default policy gate)
@@ -99,7 +98,7 @@ These are useful for behavior checks, but they relax controls that map to curren
 | `test.replication-disabled.tfvars` | `enable_replication=false` | `FG_R00275` | Keep out of default CI; run only in exploratory test lane if needed |
 | `test.lifecycle-disabled.tfvars` or `test.versioning-disabled.tfvars` | `enable_lifecycle=false` and/or `enable_versioning=false` | `FG_R00101` | Keep out of default CI; use only when intentionally validating degraded mode |
 
-Policy context: waiver rationale for `FG_R00101`, `FG_R00274`, and `FG_R00275` is documented in inline comments in [main.tf](main.tf) — these controls are implemented but currently waived at plan-time interpretation due to the limitations described in the Regula Waiver section above.
+Policy context: waiver rationale for `FG_R00101`, `FG_R00274`, and `FG_R00275` is documented in inline comments in [main.tf](main.tf) - these controls are implemented but currently waived at plan-time interpretation due to the limitations described in the Regula Waiver section above.
 
 ## Regula Waiver Rationale (Known Plan-Time Limitations)
 
@@ -132,11 +131,11 @@ If continuing this work later, prioritize the following in order:
   - Keep `FG_R00354` and `FG_R00355` deferred unless CloudTrail ownership shifts into this module.
 
 2. Expand runtime verification for waived controls:
-  - ✅ **Done**: Post-destroy verification implemented — `verifyResourcesDestroyed` in `tests/testimpl/test_impl.go` confirms the artifacts bucket, disallowed bucket, and Lambda function are absent after `terraform destroy`.
-  - Still remaining (TODOs marked in `tests/testimpl/test_impl.go`):
+  - [done] **Done**: Post-destroy verification implemented - `verifyResourcesDestroyed` in `tests/testimpl/test_impl.go` confirms the artifacts bucket, disallowed bucket, and Lambda function are absent after `terraform destroy`.
+  - [done] **Done**: Logging verification implemented - `verifyBucketLoggingConfiguration` uses `GetBucketLogging` and validates target bucket wiring against `logging_bucket_name`.
+  - [done] **Done**: Replication verification implemented - `verifyBucketReplicationConfiguration` uses `GetBucketReplication` and validates destination ARN against `replication_bucket_arn`.
+  - Still remaining:
     - Validate HTTPS enforcement (`DenyInsecureTransport`) is present on all managed bucket policies via AWS API check.
-    - Validate logging wiring: `GetBucketLogging` should confirm target bucket matches `logging_bucket_name` output when `enable_logging=true`.
-    - Validate replication presence: `GetBucketReplication` should confirm destination ARN matches `replication_bucket_arn` when `enable_replication=true`.
   - Treat completed and remaining items as compensating evidence while plan-time waivers remain.
 
 3. Re-test waiver removability after tooling changes:
@@ -181,23 +180,23 @@ module "s3_privatelink" {
 
 When replication is enabled, it is configured with:
 - Real-time replication monitoring (15-minute SLA)
-- Versioning always enabled on the destination bucket (hardcoded in the module); the source bucket requires `enable_versioning = true` — the module enforces this at plan time via a `lifecycle.precondition` and will error if you attempt to enable replication without versioning on the source
+- Versioning always enabled on the destination bucket (hardcoded in the module); the source bucket requires `enable_versioning = true` - the module enforces this at plan time via a `lifecycle.precondition` and will error if you attempt to enable replication without versioning on the source
 - Full object tagging and metadata replication
 - Output variables expose the destination bucket name and ARN
 
 ### Multi-Region Client Access (Redundant VPCE for Replica Bucket)
 
-By default, replication creates a **data-protection copy** in another region — it is not client-accessible via PrivateLink. To make the replica bucket available to clients in the DR region, you need a **second module call** with its own networking stack.
+By default, replication creates a **data-protection copy** in another region - it is not client-accessible via PrivateLink. To make the replica bucket available to clients in the DR region, you need a **second module call** with its own networking stack.
 
 **What's required in the DR region:**
 - A VPC with private subnets (same pattern as the primary region)
 - Security groups allowing HTTPS (443) inbound from consumer subnets
 - Route tables keeping traffic private (no IGW/NAT required for S3 PrivateLink)
 
-**Pattern — two module calls, one per region:**
+**Pattern - two module calls, one per region:**
 
 ```hcl
-# Primary region — creates artifact bucket + replication + VPCE
+# Primary region - creates artifact bucket + replication + VPCE
 module "primary_distribution" {
   source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
 
@@ -213,7 +212,7 @@ module "primary_distribution" {
   pipeline_role_arns        = var.pipeline_role_arns
 }
 
-# DR region — creates a second VPCE pointed at the replica bucket
+# DR region - creates a second VPCE pointed at the replica bucket
 # This makes replicated artifacts readable by clients in the DR region.
 module "dr_distribution" {
   source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
@@ -226,7 +225,7 @@ module "dr_distribution" {
   vpce_security_group_ids = [module.dr_vpce_sg.id]
   aws_region              = "us-west-2"
 
-  # The DR instance does NOT create its own artifact bucket or replication —
+  # The DR instance does NOT create its own artifact bucket or replication -
   # it serves the replica bucket created by the primary module call.
   enable_replication = false
   enable_logging     = true
@@ -240,8 +239,8 @@ module "dr_distribution" {
 
 **Key considerations:**
 - The DR module call creates its own VPCE and bucket (which may be unused or serve as a warm-standby write target). The critical piece is `additional_vpce_allowed_bucket_arns` pointing to the replica bucket so the VPCE endpoint policy permits reads.
-- The replica bucket's policy (created by the primary module) only allows the S3 replication service. You would need to **extend the replica bucket policy** to also allow `s3:GetObject` via the DR-region VPCE — this is not yet automated in the module and would require a policy update outside the primary module call or a future module enhancement.
-- Cross-region networking (Transit Gateway, VPC peering) is **not required** for this pattern — each region has its own independent VPCE talking to S3 regional endpoints. The replication is handled server-side by AWS.
+- The replica bucket's policy (created by the primary module) only allows the S3 replication service. You would need to **extend the replica bucket policy** to also allow `s3:GetObject` via the DR-region VPCE - this is not yet automated in the module and would require a policy update outside the primary module call or a future module enhancement.
+- Cross-region networking (Transit Gateway, VPC peering) is **not required** for this pattern - each region has its own independent VPCE talking to S3 regional endpoints. The replication is handled server-side by AWS.
 - This pattern is currently **not implemented as an example** in this repository due to the additional complexity of managing multi-region provider configurations and the replica bucket policy extension. It is documented here as the intended future path.
 
 ### CloudTrail Object-Level Data Events
@@ -375,8 +374,8 @@ Core private distribution bucket behavior is implemented, examples are executabl
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix applied to all resources created by this module. | `string` | `"msix-s3"` | no |
 | <a name="input_additional_vpce_allowed_bucket_arns"></a> [additional\_vpce\_allowed\_bucket\_arns](#input\_additional\_vpce\_allowed\_bucket\_arns) | Optional additional S3 bucket ARNs allowed through the interface endpoint policy. The artifact bucket is always included. | `list(string)` | `[]` | no |
 | <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Terraform/CI principal ARNs allowed to bypass the VPCE-only deny path. Supports IAM role/user ARNs and STS assumed-role ARNs. Provide explicit trusted principals (for example Terragrunt/Terraform execution role and CI pipeline roles). | `list(string)` | `[]` | no |
-| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket via dedicated Allow statements. Pipeline roles do NOT receive the broader management bypass (s3:*) — they are scoped to write operations only. Each role generates a distinct policy statement for CloudTrail visibility. | `list(string)` | `[]` | no |
-| <a name="input_enforce_deployer_principal_check"></a> [enforce\_deployer\_principal\_check](#input\_enforce\_deployer\_principal\_check) | If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted management principal pattern. Prevents accidental Terraform/CI lockout from bucket policy restrictions. | `bool` | `true` | no |
+| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | IAM role ARNs granted write access (PutObject, DeleteObject, ListBucket) to the artifact bucket via dedicated Allow statements. Pipeline roles do NOT receive the broader management bypass (s3:*) - they are scoped to write operations only. Each role generates a distinct policy statement for CloudTrail visibility. | `list(string)` | `[]` | no |
+| <a name="input_enforce_deployer_principal_check"></a> [enforce\_deployer\_principal\_check](#input\_enforce\_deployer\_principal\_check) | If true, fail plan/apply unless the current deployment principal ARN resolves to at least one trusted principal in management\_principal\_arns or pipeline\_role\_arns. Prevents accidental Terraform/CI lockout from bucket policy restrictions. | `bool` | `true` | no |
 | <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 artifact bucket. Defaults to true for data protection. | `bool` | `true` | no |
 | <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the S3 artifact bucket to expire old versions and clean up incomplete multipart uploads. | `bool` | `true` | no |
 | <a name="input_lifecycle_noncurrent_version_expiration_days"></a> [lifecycle\_noncurrent\_version\_expiration\_days](#input\_lifecycle\_noncurrent\_version\_expiration\_days) | Number of days after which to expire non-current object versions. Only applies if enable\_lifecycle is true. Set to 0 to disable. | `number` | `90` | no |

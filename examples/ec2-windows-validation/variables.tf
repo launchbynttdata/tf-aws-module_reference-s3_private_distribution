@@ -59,8 +59,8 @@ variable "admin_ingress_cidrs" {
 }
 
 # ---------------------------------------------------------------------------
-# Collection module — policy inputs
-# (these are passed through to the s3-bucket collection module)
+# Collection module - policy inputs
+# (these are passed through to the private distribution bucket collection module)
 # ---------------------------------------------------------------------------
 
 variable "management_principal_arns" {
@@ -82,7 +82,7 @@ variable "additional_vpce_allowed_bucket_arns" {
 }
 
 # ---------------------------------------------------------------------------
-# Collection module — feature toggles
+# Collection module - feature toggles
 # (these are passed through to the collection module)
 # ---------------------------------------------------------------------------
 

@@ -7,27 +7,27 @@ _subdirectory: "template"
 _skip_if_exists:
   - NOTICE
   - LICENSE
-  # Module implementation — always module-specific
+  # Module implementation - always module-specific
   - main.tf
   - variables.tf
   - outputs.tf
   - locals.tf
   - versions.tf
-  # Go module definition — module path and deps are module-specific
+  # Go module definition - module path and deps are module-specific
   - go.mod
   - go.sum
-  # Make orchestration — customised per module
+  # Make orchestration - customised per module
   - Makefile
   # Agent/LLM routing guidance
   - AGENTS.md
   - CLAUDE.md
-  # Tests — module-specific implementations
+  # Tests - module-specific implementations
   - tests/post_deploy_functional/main_test.go
   - tests/post_deploy_functional_readonly/main_test.go
   - tests/testimpl/test_impl.go
   - tests/testimpl/types.go
   - tests/terraform/scaffold.tftest.hcl
-  # Examples — fully module-specific
+  # Examples - fully module-specific
   - examples/complete/main.tf
   - examples/complete/variables.tf
   - examples/complete/outputs.tf

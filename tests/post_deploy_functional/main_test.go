@@ -72,8 +72,9 @@ func TestS3BucketCollectionFunctionalReplicationAltRegion(t *testing.T) {
 }
 
 func TestS3BucketCollectionFunctionalExternalLoggingTarget(t *testing.T) {
-	// Requires a pre-existing bucket named in test.external-logging-target.tfvars.
-	// Set RUN_EXTERNAL_LOGGING_SCENARIO=true and provide the bucket name in the tfvars file.
+	// Uses the self-managed external logging bucket created by examples/complete/main.tf
+	// when test.external-logging-target.tfvars sets use_external_logging_target=true.
+	// No pre-existing bucket is required.
 	if os.Getenv("RUN_EXTERNAL_LOGGING_SCENARIO") != "true" {
 		t.Skip("set RUN_EXTERNAL_LOGGING_SCENARIO=true to run external logging target scenario")
 	}

@@ -212,7 +212,7 @@ resource "aws_s3_object" "sample_appinstaller" {
 # ---------------------------------------------------------------------------
 # Disallowed Bucket (negative test target)
 # ---------------------------------------------------------------------------
-# External Logging Target Bucket (optional — only used when
+# External Logging Target Bucket (optional - only used when
 # var.logging_target_bucket is null and enable_logging is true and we want
 # an external bucket instead of the auto-created one)
 #
@@ -291,7 +291,7 @@ resource "aws_s3_bucket_policy" "external_logging_target" {
 # The endpoint policy for the S3 interface endpoint does NOT include this
 # bucket in its allowlist. This bucket's own policy DOES allow GetObject so
 # that, if the endpoint restriction were absent, the probe would succeed.
-# This makes the endpoint policy the sole control under test — a 403 result
+# This makes the endpoint policy the sole control under test - a 403 result
 # proves the endpoint policy is blocking, not the bucket policy.
 # ---------------------------------------------------------------------------
 

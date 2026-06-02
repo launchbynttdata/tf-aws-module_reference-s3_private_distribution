@@ -3,7 +3,7 @@ replication_destination_region = "us-west-1"
 name_prefix                    = "msix-s3-bucket-complete"
 
 # ---------------------------------------------------------------------------
-# Secure baseline — explicit values for all feature flags.
+# Secure baseline - explicit values for all feature flags.
 #
 # The example module defaults several flags to false for developer convenience
 # (no accidental replication bucket creation, etc.). These overrides restore
@@ -26,7 +26,8 @@ enable_replication = true
 #
 # For pipeline roles that need explicit CloudTrail-visible write access,
 # add them to pipeline_role_arns. These ARNs are also included in the
-# management bypass patterns used by DenyAccessOutsideVPCEndpoint.
+# deployer lockout trusted-principal guard to avoid accidental apply-time
+# self-lockout, but they are not used in management bypass ARN pattern matching.
 #
 # Examples:
 #   management_principal_arns = [
