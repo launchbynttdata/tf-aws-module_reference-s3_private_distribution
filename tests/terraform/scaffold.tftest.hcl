@@ -1,10 +1,8 @@
 # ---------------------------------------------------------------------------
-# Terraform Test Scaffold - Exploratory Profile Plan Gates
+# Terraform Test Scaffold - Baseline Plan Gates
 #
-# These tests validate that each intentionally-relaxed configuration profile
-# produces a valid Terraform plan without errors. They are NOT full
-# apply+destroy cycles. Security posture assertions for these profiles are
-# intentionally omitted - see tests/post_deploy_functional for full validation.
+# These tests validate the baseline secure profile and key input validations
+# at terraform plan time. They are NOT full apply+destroy cycles.
 #
 # Run with:
 #   terraform test -chdir=examples/complete
@@ -20,47 +18,16 @@ variables {
 }
 
 # ---------------------------------------------------------------------------
-# Logging-disabled profile
+# Baseline secure profile
 # ---------------------------------------------------------------------------
-run "plan_logging_disabled" {
+run "plan_baseline_secure_profile" {
   command = plan
 
   variables {
-    enable_logging = false
-  }
-}
-
-# ---------------------------------------------------------------------------
-# Replication-disabled profile
-# ---------------------------------------------------------------------------
-run "plan_replication_disabled" {
-  command = plan
-
-  variables {
-    enable_replication = false
-  }
-}
-
-# ---------------------------------------------------------------------------
-# Lifecycle-disabled profile
-# ---------------------------------------------------------------------------
-run "plan_lifecycle_disabled" {
-  command = plan
-
-  variables {
-    enable_lifecycle = false
-  }
-}
-
-# ---------------------------------------------------------------------------
-# Versioning-disabled profile
-# ---------------------------------------------------------------------------
-run "plan_versioning_disabled" {
-  command = plan
-
-  variables {
-    enable_versioning  = false
-    enable_replication = false # replication requires versioning; must be co-disabled
+    enable_versioning  = true
+    enable_lifecycle   = true
+    enable_logging     = true
+    enable_replication = true
   }
 }
 

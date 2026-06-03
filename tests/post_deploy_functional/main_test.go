@@ -13,7 +13,6 @@
 package test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/launchbynttdata/lcaf-component-terratest/lib"
@@ -24,12 +23,6 @@ import (
 const (
 	testConfigsExamplesFolderDefault = "../../examples/complete"
 	infraTFVarFileNameDefault        = "test.tfvars"
-	replicationAltRegionTFVarFile    = "test.replication-alt-region.tfvars"
-	externalLoggingTFVarFile         = "test.external-logging-target.tfvars"
-	loggingDisabledTFVarFile         = "test.logging-disabled.tfvars"
-	replicationDisabledTFVarFile     = "test.replication-disabled.tfvars"
-	lifecycleDisabledTFVarFile       = "test.lifecycle-disabled.tfvars"
-	versioningDisabledTFVarFile      = "test.versioning-disabled.tfvars"
 )
 
 // buildCtx creates a TestContext for the given tfvars profile.
@@ -58,50 +51,4 @@ func TestS3BucketCollectionFunctional(t *testing.T) {
 	ctx := buildCtx(infraTFVarFileNameDefault)
 
 	lib.RunSetupTestTeardown(t, *ctx, testimpl.TestComposableComplete)
-}
-
-func TestS3BucketCollectionFunctionalReplicationAltRegion(t *testing.T) {
-	// Validates the replication-alt-region profile using the same baseline assertions.
-	// Scenario-specific replication destination region checks are covered in the readonly path.
-	if os.Getenv("RUN_ADDITIONAL_COMPLETE_SCENARIOS") != "true" {
-		t.Skip("set RUN_ADDITIONAL_COMPLETE_SCENARIOS=true to run additional secure scenario profiles")
-	}
-
-	ctx := buildCtx(replicationAltRegionTFVarFile)
-	lib.RunSetupTestTeardown(t, *ctx, testimpl.TestComposableComplete)
-}
-
-func TestS3BucketCollectionFunctionalExternalLoggingTarget(t *testing.T) {
-	// Uses the self-managed external logging bucket created by examples/complete/main.tf
-	// when test.external-logging-target.tfvars sets use_external_logging_target=true.
-	// No pre-existing bucket is required.
-	if os.Getenv("RUN_EXTERNAL_LOGGING_SCENARIO") != "true" {
-		t.Skip("set RUN_EXTERNAL_LOGGING_SCENARIO=true to run external logging target scenario")
-	}
-
-	ctx := buildCtx(externalLoggingTFVarFile)
-	lib.RunSetupTestTeardown(t, *ctx, testimpl.TestComposableComplete)
-}
-
-func TestS3BucketCollectionFunctionalExploratoryProfiles(t *testing.T) {
-	// Exploratory non-gating lane for intentionally relaxed profiles.
-	// Plan-level validation for these profiles is covered in tests/terraform/.
-	// This test validates apply+destroy succeeds without asserting security posture.
-	if os.Getenv("RUN_EXPLORATORY_COMPLETE_SCENARIOS") != "true" {
-		t.Skip("set RUN_EXPLORATORY_COMPLETE_SCENARIOS=true to run exploratory scenario profiles")
-	}
-
-	profiles := []string{
-		loggingDisabledTFVarFile,
-		replicationDisabledTFVarFile,
-		lifecycleDisabledTFVarFile,
-		versioningDisabledTFVarFile,
-	}
-
-	for _, tfvarsFile := range profiles {
-		t.Run(tfvarsFile, func(t *testing.T) {
-			ctx := buildCtx(tfvarsFile)
-			lib.RunSetupTestTeardown(t, *ctx, testimpl.TestComposableComplete)
-		})
-	}
 }

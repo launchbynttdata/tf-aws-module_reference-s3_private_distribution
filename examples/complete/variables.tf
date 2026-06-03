@@ -99,7 +99,7 @@ variable "logging_target_bucket" {
 }
 
 variable "use_external_logging_target" {
-  description = "When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. Use with test.external-logging-target.tfvars."
+  description = "When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name_prefix>-ext-log) instead of the auto-created logging bucket inside the root module."
   type        = bool
   default     = false
 }

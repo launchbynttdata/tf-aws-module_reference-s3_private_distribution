@@ -1,6 +1,6 @@
 # Complete Example - Lambda-Based Validation
 
-This complete example deploys a private validation harness for the private distribution bucket collection module.
+This complete example deploys a private validation harness for the private S3 distribution reference module.
 
 It validates end-to-end behavior using a **Lambda function** over private networking only:
 
@@ -15,7 +15,7 @@ It validates end-to-end behavior using a **Lambda function** over private networ
 ## What This Deploys
 
 - VPC with private app subnets
-- S3 interface VPC endpoint consumed by the collection module
+- S3 interface VPC endpoint consumed by the reference module
 - Lambda function (Python 3.12) deployed in private subnets
 - Lambda execution role (no S3 IAM permissions; access controlled by bucket policy `aws:SourceVpce` condition)
 - Lambda security group (HTTPS egress only to VPC CIDR)
@@ -31,7 +31,7 @@ It validates end-to-end behavior using a **Lambda function** over private networ
 
 The complete example calls the module under test from this repository root. The standalone target identity for this module is:
 
-- `tf-aws-module_collection-private_distribution_bucket`
+- `tf-aws-module_reference-s3_private_distribution`
 
 ```hcl
 module "s3_privatelink" {
@@ -114,20 +114,20 @@ aws lambda invoke --region $(terraform output -raw aws_region) \
 terraform destroy -var-file=test.tfvars
 ```
 
-## Test Matrix (Tfvars Profiles)
+## Baseline Profile
 
-Profile files for this example and expected validation intent:
+Default PR validation for this example is centered on `test.tfvars`.
 
-| Profile | Purpose | Include in default CI | Expected Lambda checks |
-|---|---|---|---|
-| `test.tfvars` | Baseline secure, full-feature path | Yes | Lambda validates `200/403/403`; endpoint/bucket checks; versioning/lifecycle/logging/replication present |
-| `test.external-logging-target.tfvars` | External logging bucket path | Yes | Logging targets external bucket; secure transport constraints remain intact; Lambda `200/403/403` validation passes |
-| `test.replication-alt-region.tfvars` | Replication destination-region override | Yes | Replication resources exist and destination-region behavior honored; Lambda validation passes |
-| `test.logging-disabled.tfvars` | Logging disabled behavior | No (exploratory) | Expected degraded security mode; Lambda validation still expects `200/403/403` |
-| `test.replication-disabled.tfvars` | Replication disabled behavior | No (exploratory) | Expected degraded durability mode; Lambda validation still expects `200/403/403` |
-| `test.lifecycle-disabled.tfvars` / `test.versioning-disabled.tfvars` | Lifecycle/versioning disabled behavior | No (exploratory) | Expected degraded retention/version control; Lambda validation still expects `200/403/403` |
+Active profile set in this folder is intentionally baseline-only (`test.tfvars`).
+Deferred profile variants were preserved under `_scratch/2026-06-03-PRCommentClean/slice-b-candidates/` for potential future Slice B PR recovery.
 
-**Security note**: Exploratory profiles intentionally relax controls that map to Regula waiver IDs `FG_R00101`, `FG_R00274`, and `FG_R00275` in this module. All profiles maintain the core S3 endpoint policy validation via Lambda.
+Expected checks:
+
+- Lambda returns `200/403/403` for valid object, missing object, and disallowed bucket probes.
+- Endpoint and bucket policy controls remain enforced through the private network path.
+- Baseline security controls (versioning, lifecycle, logging, replication) are configured from the secure profile inputs.
+
+Additional scenario permutations are treated as follow-up work outside this baseline acceptance path.
 
 ## Validation Details
 
@@ -258,7 +258,7 @@ terraform destroy -var-file=test.tfvars
 | <a name="input_lifecycle_incomplete_multipart_upload_days"></a> [lifecycle\_incomplete\_multipart\_upload\_days](#input\_lifecycle\_incomplete\_multipart\_upload\_days) | Days to retain incomplete multipart uploads. | `number` | `7` | no |
 | <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enable S3 access logging. | `bool` | `false` | no |
 | <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Target bucket for access logs. Mutually exclusive with use\_external\_logging\_target. | `string` | `null` | no |
-| <a name="input_use_external_logging_target"></a> [use\_external\_logging\_target](#input\_use\_external\_logging\_target) | When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name\_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. Use with test.external-logging-target.tfvars. | `bool` | `false` | no |
+| <a name="input_use_external_logging_target"></a> [use\_external\_logging\_target](#input\_use\_external\_logging\_target) | When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name\_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. | `bool` | `false` | no |
 | <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Prefix for access logs. | `string` | `"logs/"` | no |
 | <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable cross-region replication. | `bool` | `false` | no |
 | <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | Destination region for replication. | `string` | `null` | no |

@@ -1,14 +1,14 @@
-# Private Distribution Bucket Collection Module
+# Private S3 Distribution Reference Module
 
-This folder contains a production-ready Terraform collection module for private software distribution over S3 interface endpoints.
+This repository provides a purpose-built reference module for private S3-backed internal distribution: an artifacts bucket reachable through an S3 interface endpoint, explicit management and pipeline write principals, secure transport enforcement, and baseline logging/replication controls that produce auditable evidence of access-path behavior.
 
-The intended standalone repository identity is `tf-aws-module_collection-private_distribution_bucket`.
+Repository identity: `tf-aws-module_reference-s3_private_distribution`.
 
 ## Current Scope
 
-- Provides a reusable collection module surface for private distribution buckets.
-- Includes complete and simple examples for validation and integration testing.
-- Includes policy testing and Go-based post-deploy verification paths.
+- Keep `examples/complete` as the single secure baseline for this PR.
+- Prove core controls with one apply/destroy path and one readonly evidence path.
+- Keep exploratory or degraded profile work out of the baseline review path.
 
 ## Structure
 
@@ -17,9 +17,8 @@ The intended standalone repository identity is `tf-aws-module_collection-private
 - Nested examples:
   - examples/simple
   - examples/complete
-  - examples/ec2-windows-validation (manual reference harness; not part of automated Go test suite)
 - Test suites:
-  - tests/terraform (terraform test smoke scaffold)
+  - tests/terraform (terraform baseline plan scaffold)
   - tests/post_deploy_functional (Go/Terratest apply + functional validation)
   - tests/post_deploy_functional_readonly (Go/Terratest non-destructive verification)
   - tests/testimpl (shared provider API validation logic)
@@ -69,36 +68,27 @@ Required files and setup:
 - `make test` executes Terraform example planning (`tfmodule/plan`) and then runs functional Go post-deploy tests via `go/test`.
 - `make test` currently uses composed double-colon stages in the Makefile, so you will see staged provider generation/planning banners and an additional plan stage in output.
 - Post-deploy tests invoke a Lambda function deployed in private subnets to validate S3 endpoint access via network-path-only conditions (no IAM credentials).
+- Baseline review target: `examples/complete/test.tfvars` with secure controls enabled.
 - Test region defaults are pinned for quota stability: primary deployment in `us-east-2`, replication destination in `us-west-1`.
 - `make test` runs end-to-end validation with infrastructure teardown. **Expected duration**: ~35-45 minutes. The test harness runs two sequential `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`), which accounts for the majority of the time beyond a single apply+destroy.
 - `make go/readonly_test` runs readonly/non-destructive Go verification against existing infrastructure.
-- `tests/terraform/scaffold.tftest.hcl` runs `terraform test` plan-only profile checks. It is not wired into `make test` and does not require deployed infrastructure.
+- `tests/terraform/scaffold.tftest.hcl` runs `terraform test` baseline plan checks. It is not wired into `make test` and does not require deployed infrastructure.
 - **Post-destroy verification**: After `terraform destroy`, the Go test suite automatically verifies that the artifacts bucket, disallowed bucket, and Lambda function are actually absent in AWS (`tests/testimpl/test_impl.go: verifyResourcesDestroyed` via `t.Cleanup`).
-- **Region drift caution**: The dev container sets `AWS_REGION=us-west-2` by default. The Makefile defaults to `us-east-2`, but the shell env var takes precedence. Always invoke `make test AWS_REGION=us-east-2` explicitly. A precondition guard in `examples/complete/main.tf` will catch provider/variable region mismatches at plan time and abort with a clear error.
+- **Region drift caution**: Terraform and AWS client environment settings can override region defaults. The Makefile defaults to `us-east-2`, but shell environment variables take precedence. Invoke `make test AWS_REGION=us-east-2` explicitly when validating the baseline profile. A precondition guard in `examples/complete/main.tf` catches provider/variable region mismatches at plan time and aborts early.
 
-## Test Matrix (Tfvars Profiles)
+## Baseline Validation Profile
 
-The profiles below are available for explicit scenario coverage in `examples/complete/`.
+For PR acceptance, baseline validation is centered on `examples/complete/test.tfvars`.
 
-### Security-gated profiles (recommended for standard CI)
+Expected baseline assertions:
 
-| Profile | Intent | Security posture | Expected assertions |
-|---|---|---|---|
-| `test.tfvars` | Baseline secure deployment | Secure defaults or explicit secure values (`enable_versioning=true`, `enable_lifecycle=true`, `enable_logging=true`, `enable_replication=true`) | VPC endpoint exists and is interface type; bucket exists; Lambda validation returns `200/403/403`; logging/replication/versioning/lifecycle resources are present |
-| `test.external-logging-target.tfvars` | Validate external logging bucket integration | Secure - `enable_logging=true`, target bucket policy permits only S3 logging service writes (scoped by source ARN + account) | `aws_s3_bucket_logging.artifacts` targets the self-managed `<name_prefix>-ext-log` bucket created by the example; no auto-created logging bucket inside root module; bucket policy + transport controls still enforced; Lambda validation passes |
-| `test.replication-alt-region.tfvars` | Validate replication destination override | Secure when replication remains enabled | Replication bucket/resources exist and use specified destination region; replication configuration remains active; Lambda validation passes |
+- S3 interface endpoint exists and is interface type.
+- Artifacts bucket exists with secure transport and endpoint-path controls.
+- Lambda network-path validation returns `200/403/403`.
+- Logging, replication, versioning, and lifecycle controls are configured when enabled in baseline inputs.
 
-### Exploratory profiles (not recommended for default policy gate)
-
-These are useful for behavior checks, but they relax controls that map to current Regula waiver IDs and security expectations.
-
-| Profile | Counter-control | Related policy/waiver ID | Recommendation |
-|---|---|---|---|
-| `test.logging-disabled.tfvars` | `enable_logging=false` | `FG_R00274` | Keep out of default CI; run only in exploratory test lane if needed |
-| `test.replication-disabled.tfvars` | `enable_replication=false` | `FG_R00275` | Keep out of default CI; run only in exploratory test lane if needed |
-| `test.lifecycle-disabled.tfvars` or `test.versioning-disabled.tfvars` | `enable_lifecycle=false` and/or `enable_versioning=false` | `FG_R00101` | Keep out of default CI; use only when intentionally validating degraded mode |
-
-Policy context: waiver rationale for `FG_R00101`, `FG_R00274`, and `FG_R00275` is documented in inline comments in [main.tf](main.tf) - these controls are implemented but currently waived at plan-time interpretation due to the limitations described in the Regula Waiver section above.
+Exploratory and degraded profile permutations are intentionally deferred from the default review path and tracked as follow-up work.
+Deferred variants are preserved under `_scratch/2026-06-03-PRCommentClean/slice-b-candidates/` for future Slice B recovery.
 
 ## Regula Waiver Rationale (Known Plan-Time Limitations)
 
@@ -122,36 +112,13 @@ Guidance for sync/upstream review:
 - Keep waiver rationale documented in inline comments near the relevant S3 policy resources in [main.tf](main.tf) and [examples/complete/main.tf](examples/complete/main.tf).
 - Re-evaluate waivers whenever Regula policy behavior or module architecture changes.
 
-### Suggested Next Steps (Handoff)
-
-If continuing this work later, prioritize the following in order:
-
-1. Tighten waiver scope where possible:
-  - Replace rule-wide waivers with resource-specific waivers if supported by policy tooling.
-  - Keep `FG_R00354` and `FG_R00355` deferred unless CloudTrail ownership shifts into this module.
-
-2. Expand runtime verification for waived controls:
-  - [done] **Done**: Post-destroy verification implemented - `verifyResourcesDestroyed` in `tests/testimpl/test_impl.go` confirms the artifacts bucket, disallowed bucket, and Lambda function are absent after `terraform destroy`.
-  - [done] **Done**: Logging verification implemented - `verifyBucketLoggingConfiguration` uses `GetBucketLogging` and validates target bucket wiring against `logging_bucket_name`.
-  - [done] **Done**: Replication verification implemented - `verifyBucketReplicationConfiguration` uses `GetBucketReplication` and validates destination ARN against `replication_bucket_arn`.
-  - Still remaining:
-    - Validate HTTPS enforcement (`DenyInsecureTransport`) is present on all managed bucket policies via AWS API check.
-  - Treat completed and remaining items as compensating evidence while plan-time waivers remain.
-
-3. Re-test waiver removability after tooling changes:
-  - Re-run `make tfmodule/plan` whenever Terraform/policy tooling is upgraded, and re-run your policy check workflow lane in CI.
-  - Attempt removing `FG_R00100`, `FG_R00101`, `FG_R00274`, and `FG_R00275` again after upgrades.
-
-4. Keep docs and code comments synchronized:
-  - If waiver intent changes, update the inline comments in [main.tf](main.tf), [examples/complete/main.tf](examples/complete/main.tf), and this README in the same PR.
-
 ### S3 Access Logging
 
 Access logging is **enabled by default** to capture all API calls against the S3 bucket. Logs are written to an auto-created private logging bucket with the `artifact-bucket-logs/` prefix. To use an external logging bucket instead:
 
 ```hcl
 module "s3_privatelink" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_reference-s3_private_distribution"
 
   enable_logging        = true
   logging_target_bucket = "my-existing-logging-bucket"
@@ -169,7 +136,7 @@ Replication to a standby bucket is **enabled by default** and replicates objects
 
 ```hcl
 module "s3_privatelink" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_reference-s3_private_distribution"
 
   enable_replication              = false
   replication_destination_region  = "us-east-1"  # Optional; defaults to primary region
@@ -198,7 +165,7 @@ By default, replication creates a **data-protection copy** in another region - i
 ```hcl
 # Primary region - creates artifact bucket + replication + VPCE
 module "primary_distribution" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_reference-s3_private_distribution"
 
   vpc_id                  = module.primary_vpc.vpc_id
   vpce_subnet_ids         = module.primary_private_subnets[*].subnet_id
@@ -215,7 +182,7 @@ module "primary_distribution" {
 # DR region - creates a second VPCE pointed at the replica bucket
 # This makes replicated artifacts readable by clients in the DR region.
 module "dr_distribution" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_reference-s3_private_distribution"
   providers = {
     aws = aws.dr_region
   }
@@ -241,7 +208,7 @@ module "dr_distribution" {
 - The DR module call creates its own VPCE and bucket (which may be unused or serve as a warm-standby write target). The critical piece is `additional_vpce_allowed_bucket_arns` pointing to the replica bucket so the VPCE endpoint policy permits reads.
 - The replica bucket's policy (created by the primary module) only allows the S3 replication service. You would need to **extend the replica bucket policy** to also allow `s3:GetObject` via the DR-region VPCE - this is not yet automated in the module and would require a policy update outside the primary module call or a future module enhancement.
 - Cross-region networking (Transit Gateway, VPC peering) is **not required** for this pattern - each region has its own independent VPCE talking to S3 regional endpoints. The replication is handled server-side by AWS.
-- This pattern is currently **not implemented as an example** in this repository due to the additional complexity of managing multi-region provider configurations and the replica bucket policy extension. It is documented here as the intended future path.
+- This pattern is currently **not implemented as an example** in this repository due to the additional complexity of managing multi-region provider configurations and the replica bucket policy extension. It is documented here as to provide guidance as to how to make use of this reference module toward that pattern if required.
 
 ### CloudTrail Object-Level Data Events
 
@@ -287,7 +254,7 @@ Override these defaults:
 
 ```hcl
 module "s3_privatelink" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_reference-s3_private_distribution"
 
   enable_lifecycle                            = true
   lifecycle_noncurrent_version_expiration_days = 30   # Shorten retention
@@ -305,7 +272,7 @@ Versioning is **enabled by default** for data protection. Disable with:
 
 ```hcl
 module "s3_privatelink" {
-  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-private_distribution_bucket"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_reference-s3_private_distribution"
 
   enable_versioning  = false
   enable_replication = false  # required: replication depends on source-bucket versioning
@@ -315,10 +282,6 @@ module "s3_privatelink" {
 ```
 
 > **Note**: `enable_replication` must also be `false` when `enable_versioning = false`. S3 replication requires versioning on the source bucket. The module enforces this constraint at plan time and will produce an error if you attempt to combine `enable_versioning = false` with `enable_replication = true`.
-
-## Implementation Status
-
-Core private distribution bucket behavior is implemented, examples are executable, and policy/waiver guidance is documented. Remaining follow-up work is focused on incremental hardening and naming finalization when this module is promoted to its standalone repository.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
