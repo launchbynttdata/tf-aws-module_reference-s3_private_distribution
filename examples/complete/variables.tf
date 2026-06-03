@@ -110,6 +110,18 @@ variable "logging_prefix" {
   default     = "logs/"
 }
 
+variable "artifact_bucket_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for the artifact bucket. Null preserves the baseline AES256 path used by the network-only validation harness."
+  type        = string
+  default     = null
+}
+
+variable "logging_bucket_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for the module-managed logging bucket. Null preserves the module default AES256 path."
+  type        = string
+  default     = null
+}
+
 variable "enable_replication" {
   description = "Enable cross-region replication."
   type        = bool
@@ -118,6 +130,12 @@ variable "enable_replication" {
 
 variable "replication_destination_region" {
   description = "Destination region for replication."
+  type        = string
+  default     = null
+}
+
+variable "replication_bucket_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for the replication destination bucket. Null preserves the module default AES256 path."
   type        = string
   default     = null
 }

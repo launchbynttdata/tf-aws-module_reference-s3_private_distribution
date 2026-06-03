@@ -37,7 +37,9 @@ module "artifacts_bucket" {
 
   bucket_name                        = local.s3_bucket_name
   enable_versioning                  = var.enable_versioning
-  use_default_server_side_encryption = true
+  use_default_server_side_encryption = var.artifact_bucket_kms_key_arn == null
+  kms_s3_key_arn                     = var.artifact_bucket_kms_key_arn
+  kms_s3_key_sse_algorithm           = var.artifact_bucket_kms_key_arn != null ? "aws:kms" : null
   lifecycle_rule                     = local.lifecycle_rules_json
   block_public_acls                  = true
   ignore_public_acls                 = true
@@ -76,7 +78,9 @@ module "logging_bucket" {
   version = "~> 1.1"
 
   bucket_name                        = local.logging_bucket_name_computed
-  use_default_server_side_encryption = true
+  use_default_server_side_encryption = var.logging_bucket_kms_key_arn == null
+  kms_s3_key_arn                     = var.logging_bucket_kms_key_arn
+  kms_s3_key_sse_algorithm           = var.logging_bucket_kms_key_arn != null ? "aws:kms" : null
   block_public_acls                  = true
   ignore_public_acls                 = true
   block_public_policy                = true
@@ -137,7 +141,9 @@ module "replication_bucket" {
 
   bucket_name                        = local.replication_bucket_name_computed
   enable_versioning                  = true
-  use_default_server_side_encryption = true
+  use_default_server_side_encryption = var.replication_bucket_kms_key_arn == null
+  kms_s3_key_arn                     = var.replication_bucket_kms_key_arn
+  kms_s3_key_sse_algorithm           = var.replication_bucket_kms_key_arn != null ? "aws:kms" : null
   block_public_acls                  = true
   ignore_public_acls                 = true
   block_public_policy                = true
@@ -175,34 +181,58 @@ resource "aws_iam_policy" "replication" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetReplicationConfiguration",
-          "s3:ListBucket"
-        ]
-        Resource = module.artifacts_bucket.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObjectVersionForReplication",
-          "s3:GetObjectVersionAcl",
-          "s3:GetObjectVersionTagging"
-        ]
-        Resource = "${module.artifacts_bucket.arn}/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ReplicateObject",
-          "s3:ReplicateDelete",
-          "s3:ReplicateTags"
-        ]
-        Resource = "${module.replication_bucket[0].arn}/*"
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:GetReplicationConfiguration",
+            "s3:ListBucket"
+          ]
+          Resource = module.artifacts_bucket.arn
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:GetObjectVersionForReplication",
+            "s3:GetObjectVersionAcl",
+            "s3:GetObjectVersionTagging"
+          ]
+          Resource = "${module.artifacts_bucket.arn}/*"
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:ReplicateObject",
+            "s3:ReplicateDelete",
+            "s3:ReplicateTags"
+          ]
+          Resource = "${module.replication_bucket[0].arn}/*"
+        }
+      ],
+      var.artifact_bucket_kms_key_arn != null ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt",
+            "kms:DescribeKey"
+          ]
+          Resource = [var.artifact_bucket_kms_key_arn]
+        }
+      ] : [],
+      var.replication_bucket_kms_key_arn != null ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "kms:Encrypt",
+            "kms:GenerateDataKey",
+            "kms:ReEncrypt*",
+            "kms:DescribeKey"
+          ]
+          Resource = [var.replication_bucket_kms_key_arn]
+        }
+      ] : []
+    )
   })
 }
 
@@ -222,6 +252,11 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
       condition     = var.enable_versioning
       error_message = "enable_versioning must be true when enable_replication is true. S3 replication requires versioning on the source bucket. Set enable_replication = false or enable_versioning = true."
     }
+
+    precondition {
+      condition     = !(var.artifact_bucket_kms_key_arn != null && var.replication_bucket_kms_key_arn == null)
+      error_message = "replication_bucket_kms_key_arn must be set when replicating SSE-KMS encrypted artifacts."
+    }
   }
 
   rule {
@@ -235,9 +270,27 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
       status = "Disabled"
     }
 
+    dynamic "source_selection_criteria" {
+      for_each = var.artifact_bucket_kms_key_arn != null ? [1] : []
+
+      content {
+        sse_kms_encrypted_objects {
+          status = "Enabled"
+        }
+      }
+    }
+
     destination {
       bucket        = module.replication_bucket[0].arn
       storage_class = "STANDARD"
+
+      dynamic "encryption_configuration" {
+        for_each = var.replication_bucket_kms_key_arn != null ? [1] : []
+
+        content {
+          replica_kms_key_id = var.replication_bucket_kms_key_arn
+        }
+      }
 
       replication_time {
         status = "Enabled"

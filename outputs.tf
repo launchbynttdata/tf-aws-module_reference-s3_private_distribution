@@ -21,6 +21,16 @@ output "s3_bucket_arn" {
   value       = module.artifacts_bucket.arn
 }
 
+output "artifact_bucket_kms_key_arn" {
+  description = "Configured customer-managed KMS key ARN for the artifact bucket. Null means the module is using its AES256 default encryption path."
+  value       = var.artifact_bucket_kms_key_arn
+}
+
+output "artifact_bucket_sse_algorithm" {
+  description = "Effective default server-side encryption algorithm for the artifact bucket."
+  value       = var.artifact_bucket_kms_key_arn != null ? "aws:kms" : "AES256"
+}
+
 output "s3_interface_vpce_id" {
   description = "ID of the S3 interface VPC endpoint (e.g. vpce-0abc123)."
   value       = module.s3_interface_vpce.id
@@ -46,6 +56,16 @@ output "logging_bucket_arn" {
   value       = var.enable_logging && var.logging_target_bucket == null ? module.logging_bucket[0].arn : null
 }
 
+output "logging_bucket_kms_key_arn" {
+  description = "Configured customer-managed KMS key ARN for the module-managed logging bucket. Null means the module is using its AES256 default or the logging bucket is external/unmanaged."
+  value       = var.enable_logging && var.logging_target_bucket == null ? var.logging_bucket_kms_key_arn : null
+}
+
+output "logging_bucket_sse_algorithm" {
+  description = "Effective default server-side encryption algorithm for the module-managed logging bucket. Returns null when logging is disabled or the logging bucket is external."
+  value       = var.enable_logging ? (var.logging_target_bucket == null ? (var.logging_bucket_kms_key_arn != null ? "aws:kms" : "AES256") : null) : null
+}
+
 output "replication_bucket_name" {
   description = "Name of the S3 replication destination bucket (if created). Receives replicated objects from the artifact bucket."
   value       = var.enable_replication ? module.replication_bucket[0].id : null
@@ -54,4 +74,14 @@ output "replication_bucket_name" {
 output "replication_bucket_arn" {
   description = "ARN of the S3 replication destination bucket (if created)."
   value       = var.enable_replication ? module.replication_bucket[0].arn : null
+}
+
+output "replication_bucket_kms_key_arn" {
+  description = "Configured customer-managed KMS key ARN for the replication destination bucket. Null means the module is using its AES256 default or replication is disabled."
+  value       = var.enable_replication ? var.replication_bucket_kms_key_arn : null
+}
+
+output "replication_bucket_sse_algorithm" {
+  description = "Effective default server-side encryption algorithm for the replication destination bucket. Returns null when replication is disabled."
+  value       = var.enable_replication ? (var.replication_bucket_kms_key_arn != null ? "aws:kms" : "AES256") : null
 }

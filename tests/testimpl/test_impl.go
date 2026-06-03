@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -75,8 +76,15 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	bucketName := terraform.Output(t, tfOptions, "s3_bucket_name")
 	disallowedBucketName := terraform.Output(t, tfOptions, "disallowed_bucket_name")
 	functionName := terraform.Output(t, tfOptions, "lambda_function_name")
+	artifactBucketSSEAlgorithm := terraform.Output(t, tfOptions, "artifact_bucket_sse_algorithm")
+	artifactBucketKMSKeyArn := terraform.Output(t, tfOptions, "artifact_bucket_kms_key_arn")
 	loggingBucketName := terraform.Output(t, tfOptions, "logging_bucket_name")
+	loggingBucketSSEAlgorithm := terraform.Output(t, tfOptions, "logging_bucket_sse_algorithm")
+	loggingBucketKMSKeyArn := terraform.Output(t, tfOptions, "logging_bucket_kms_key_arn")
+	replicationBucketName := terraform.Output(t, tfOptions, "replication_bucket_name")
 	replicationBucketArn := terraform.Output(t, tfOptions, "replication_bucket_arn")
+	replicationBucketSSEAlgorithm := terraform.Output(t, tfOptions, "replication_bucket_sse_algorithm")
+	replicationBucketKMSKeyArn := terraform.Output(t, tfOptions, "replication_bucket_kms_key_arn")
 
 	assert.Equal(t, expectedPrimaryRegion, region, "aws_region should match the test profile region")
 	assert.Regexp(t, `^vpce-[0-9a-f]{17}$`, endpointID, "s3_interface_vpce_id should be a valid VPC endpoint ID format")
@@ -108,8 +116,15 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	require.Contains(t, policyJSON, "DenyAccessOutsideVPCEndpoint", "bucket policy should include VPCE deny statement")
 	require.NotContains(t, policyJSON, "aws:PrincipalAccount", "bucket policy must not include broad same-account bypass conditions")
 
+	verifyBucketEncryptionConfiguration(t, awsCfg, bucketName, artifactBucketSSEAlgorithm, artifactBucketKMSKeyArn)
 	verifyBucketLoggingConfiguration(t, s3Client, bucketName, loggingBucketName)
+	if loggingBucketSSEAlgorithm != "" {
+		verifyBucketEncryptionConfiguration(t, awsCfg, loggingBucketName, loggingBucketSSEAlgorithm, loggingBucketKMSKeyArn)
+	}
 	verifyBucketReplicationConfiguration(t, s3Client, bucketName, replicationBucketArn)
+	if replicationBucketSSEAlgorithm != "" {
+		verifyBucketEncryptionConfiguration(t, awsCfg, replicationBucketName, replicationBucketSSEAlgorithm, replicationBucketKMSKeyArn)
+	}
 
 	return validationContext{
 		region:               region,
@@ -191,6 +206,35 @@ func verifyBucketLoggingConfiguration(t *testing.T, s3Client *s3.Client, bucketN
 	require.NotNil(t, loggingOut.LoggingEnabled, "bucket logging should be enabled when a logging target bucket is configured")
 	assert.Equal(t, expectedTargetBucket, aws.ToString(loggingOut.LoggingEnabled.TargetBucket), "logging target bucket should match Terraform output")
 	assert.True(t, strings.HasSuffix(aws.ToString(loggingOut.LoggingEnabled.TargetPrefix), "logs/"), "logging prefix should end with logs/")
+}
+
+func verifyBucketEncryptionConfiguration(t *testing.T, awsCfg aws.Config, bucketName string, expectedAlgorithm string, expectedKmsKeyArn string) {
+	t.Helper()
+
+	bucketRegion, err := manager.GetBucketRegion(context.Background(), s3.NewFromConfig(awsCfg), bucketName)
+	require.NoError(t, err, "failed to resolve bucket region for %s", bucketName)
+
+	regionalCfg := awsCfg.Copy()
+	regionalCfg.Region = bucketRegion
+	regionalS3Client := s3.NewFromConfig(regionalCfg)
+
+	encryptionOut, err := regionalS3Client.GetBucketEncryption(context.Background(), &s3.GetBucketEncryptionInput{
+		Bucket: aws.String(bucketName),
+	})
+	require.NoError(t, err, "failed to get bucket encryption for %s", bucketName)
+	require.NotNil(t, encryptionOut.ServerSideEncryptionConfiguration, "bucket encryption configuration should be present for %s", bucketName)
+	require.NotEmpty(t, encryptionOut.ServerSideEncryptionConfiguration.Rules, "bucket encryption configuration should contain at least one rule for %s", bucketName)
+	require.NotNil(t, encryptionOut.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault, "default encryption settings should be present for %s", bucketName)
+
+	defaultEncryption := encryptionOut.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
+	assert.Equal(t, expectedAlgorithm, string(defaultEncryption.SSEAlgorithm), "bucket SSE algorithm should match Terraform output for %s", bucketName)
+
+	if expectedKmsKeyArn == "" {
+		assert.Empty(t, aws.ToString(defaultEncryption.KMSMasterKeyID), "bucket KMS key ARN should be empty for %s when using AES256", bucketName)
+		return
+	}
+
+	assert.Equal(t, expectedKmsKeyArn, aws.ToString(defaultEncryption.KMSMasterKeyID), "bucket KMS key ARN should match Terraform output for %s", bucketName)
 }
 
 func verifyBucketReplicationConfiguration(t *testing.T, s3Client *s3.Client, bucketName string, expectedDestinationArn string) {

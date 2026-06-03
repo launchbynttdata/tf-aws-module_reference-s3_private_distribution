@@ -10,6 +10,8 @@ It validates end-to-end behavior using a **Lambda function** over private networ
 
 **Key Design**: The Lambda function uses `urllib.request` without boto3 or AWS credentials. This accurately simulates corporate network clients that only have network-path access to S3 endpoints. Validation is purely transport-layer, not IAM-based.
 
+**KMS note**: The module now supports opt-in customer-managed KMS keys for the artifact, logging, and replication buckets. This baseline example keeps the artifact bucket on the default AES256 path because the Lambda harness intentionally uses unsigned, network-path-only reads. If you enable `artifact_bucket_kms_key_arn`, consumer requests must be signed and authorized for KMS decrypt.
+
 **Note on 403 for missing objects**: The missing-object probe intentionally expects `403` rather than `404`. Through the S3 interface endpoint path used here, a missing key is surfaced as access denied instead of the public-S3-style not found response. This is expected behavior.
 
 ## What This Deploys
@@ -58,8 +60,11 @@ module "s3_privatelink" {
   enable_logging                               = var.enable_logging
   logging_target_bucket                        = local.effective_logging_target_bucket
   logging_prefix                               = var.logging_prefix
+  artifact_bucket_kms_key_arn                  = var.artifact_bucket_kms_key_arn
+  logging_bucket_kms_key_arn                   = var.logging_bucket_kms_key_arn
   enable_replication                           = var.enable_replication
   replication_destination_region               = var.replication_destination_region
+  replication_bucket_kms_key_arn               = var.replication_bucket_kms_key_arn
 
   tags = var.tags
 }
@@ -98,6 +103,48 @@ Region defaults used by the test profile are `aws_region = us-east-2` and `repli
 
 **Expected duration**: ~35-45 minutes total. The test harness runs two full `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`). VPC interface endpoint ENI provisioning is the largest single contributor (~5-8 min); versioned S3 bucket destruction accounts for most of teardown time.
 
+**Current validation status (2026-06-03)**: baseline `terraform apply`/`destroy`, `make test`, `make lint`, focused functional rerun (`go test ./tests/post_deploy_functional -run TestS3BucketCollectionFunctional`), and readonly verification (`go test ./tests/post_deploy_functional_readonly -run TestS3BucketCollectionReadonly`) were run successfully in this PR workflow.
+
+### Deploy-Then-Readonly Workflow
+
+Use this when you want to validate readonly behavior against live infrastructure without automatic teardown.
+
+1. From repository root, generate example provider files:
+
+```bash
+make tfmodule/create_example_providers AWS_REGION=us-east-2 AWS_PROFILE=default
+```
+
+2. Deploy this example:
+
+```bash
+terraform -chdir=examples/complete init -backend=false
+terraform -chdir=examples/complete apply -var-file=test.tfvars
+```
+
+3. Run readonly test entrypoint:
+
+```bash
+go test -v -count=1 -timeout=2h ./tests/post_deploy_functional_readonly -run TestS3BucketCollectionReadonly
+```
+
+Optional Make target:
+
+```bash
+make go/readonly_test
+```
+
+4. Tear down after readonly verification:
+
+```bash
+terraform -chdir=examples/complete destroy -var-file=test.tfvars
+```
+
+Notes:
+
+- Keep `AWS_REGION` aligned with `test.tfvars` (`us-east-2`) to avoid precondition failures.
+- Readonly tests use `RunNonDestructiveTest` and do not create or destroy infrastructure.
+
 **Manual validation** (if needed during development):
 
 ```bash
@@ -125,6 +172,7 @@ Expected checks:
 
 - Lambda returns `200/403/403` for valid object, missing object, and disallowed bucket probes.
 - Endpoint and bucket policy controls remain enforced through the private network path.
+- Bucket encryption state is verified through the S3 API for the artifact bucket and, when present, the module-managed logging and replication buckets.
 - Baseline security controls (versioning, lifecycle, logging, replication) are configured from the secure profile inputs.
 
 Additional scenario permutations are treated as follow-up work outside this baseline acceptance path.
@@ -187,9 +235,9 @@ terraform destroy -var-file=test.tfvars
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.6.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.10 |
 | <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.4 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.100, < 7.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.6 |
 
 ## Providers
@@ -260,8 +308,11 @@ terraform destroy -var-file=test.tfvars
 | <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Target bucket for access logs. Mutually exclusive with use\_external\_logging\_target. | `string` | `null` | no |
 | <a name="input_use_external_logging_target"></a> [use\_external\_logging\_target](#input\_use\_external\_logging\_target) | When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name\_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. | `bool` | `false` | no |
 | <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Prefix for access logs. | `string` | `"logs/"` | no |
+| <a name="input_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#input\_artifact\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the artifact bucket. Null preserves the baseline AES256 path used by the network-only validation harness. | `string` | `null` | no |
+| <a name="input_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#input\_logging\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the module-managed logging bucket. Null preserves the module default AES256 path. | `string` | `null` | no |
 | <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable cross-region replication. | `bool` | `false` | no |
 | <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | Destination region for replication. | `string` | `null` | no |
+| <a name="input_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#input\_replication\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the replication destination bucket. Null preserves the module default AES256 path. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources. | `map(string)` | <pre>{<br/>  "Purpose": "S3-PrivateLink-Validation",<br/>  "Terraform": "true"<br/>}</pre> | no |
 
 ## Outputs
@@ -271,12 +322,19 @@ terraform destroy -var-file=test.tfvars
 | <a name="output_lambda_function_name"></a> [lambda\_function\_name](#output\_lambda\_function\_name) | Name of the validation Lambda function |
 | <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name of the S3 artifact bucket |
 | <a name="output_s3_bucket_arn"></a> [s3\_bucket\_arn](#output\_s3\_bucket\_arn) | ARN of the S3 artifact bucket |
+| <a name="output_artifact_bucket_sse_algorithm"></a> [artifact\_bucket\_sse\_algorithm](#output\_artifact\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the artifact bucket. |
+| <a name="output_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#output\_artifact\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the artifact bucket. Empty string means the module is using its AES256 default path. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Bucket-style hostname for the S3 interface endpoint |
 | <a name="output_disallowed_bucket_name"></a> [disallowed\_bucket\_name](#output\_disallowed\_bucket\_name) | Name of the disallowed bucket (used for negative validation) |
 | <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID |
 | <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging target bucket (auto-created or externally supplied). Empty string when logging is disabled. |
+| <a name="output_logging_bucket_sse_algorithm"></a> [logging\_bucket\_sse\_algorithm](#output\_logging\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the module-managed logging bucket. Empty string means logging is disabled or the target bucket is external to the module. |
+| <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Empty string means the module is using its AES256 default or the logging target is external. |
+| <a name="output_replication_bucket_name"></a> [replication\_bucket\_name](#output\_replication\_bucket\_name) | Name of the replication destination bucket. Empty string when replication is disabled. |
 | <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the replication destination bucket. Empty string when replication is disabled. |
+| <a name="output_replication_bucket_sse_algorithm"></a> [replication\_bucket\_sse\_algorithm](#output\_replication\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the replication destination bucket. Empty string when replication is disabled. |
+| <a name="output_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#output\_replication\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the replication destination bucket. Empty string means the module is using its AES256 default or replication is disabled. |
 | <a name="output_external_logging_target_bucket_name"></a> [external\_logging\_target\_bucket\_name](#output\_external\_logging\_target\_bucket\_name) | Name of the self-managed external logging target bucket created by this example. Referenced when use\_external\_logging\_target = true. |
 <!-- END_TF_DOCS -->

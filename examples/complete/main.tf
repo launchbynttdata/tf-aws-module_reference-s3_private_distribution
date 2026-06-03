@@ -191,8 +191,11 @@ module "s3_privatelink" {
   enable_logging                               = var.enable_logging
   logging_target_bucket                        = local.effective_logging_target_bucket
   logging_prefix                               = var.logging_prefix
+  artifact_bucket_kms_key_arn                  = var.artifact_bucket_kms_key_arn
+  logging_bucket_kms_key_arn                   = var.logging_bucket_kms_key_arn
   enable_replication                           = var.enable_replication
   replication_destination_region               = var.replication_destination_region
+  replication_bucket_kms_key_arn               = var.replication_bucket_kms_key_arn
 
   tags = var.tags
 

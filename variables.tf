@@ -201,6 +201,38 @@ variable "logging_prefix" {
   default     = "artifact-bucket-logs/"
 }
 
+variable "artifact_bucket_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for default encryption on the artifact bucket. Null keeps the module's AES256 default."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.artifact_bucket_kms_key_arn == null ? true : can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/.+$", var.artifact_bucket_kms_key_arn))
+    error_message = "artifact_bucket_kms_key_arn must be a valid AWS KMS key ARN or null."
+  }
+}
+
+variable "logging_bucket_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for the module-managed logging bucket. Null keeps the module's AES256 default. Cannot be used with an external logging_target_bucket."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.logging_bucket_kms_key_arn == null ? true : can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/.+$", var.logging_bucket_kms_key_arn))
+    error_message = "logging_bucket_kms_key_arn must be a valid AWS KMS key ARN or null."
+  }
+
+  validation {
+    condition     = !(!var.enable_logging && var.logging_bucket_kms_key_arn != null)
+    error_message = "logging_bucket_kms_key_arn can only be set when enable_logging is true."
+  }
+
+  validation {
+    condition     = !(var.logging_target_bucket != null && var.logging_bucket_kms_key_arn != null)
+    error_message = "logging_bucket_kms_key_arn applies only to the module-managed logging bucket. Omit it when logging_target_bucket points to an external bucket."
+  }
+}
+
 # ---------------------------------------------------------------------------
 # Replication
 # ---------------------------------------------------------------------------
@@ -215,6 +247,27 @@ variable "replication_destination_region" {
   description = "AWS region in which to create the replication destination bucket. Only used if enable_replication is true. If not provided, defaults to the primary region (var.aws_region)."
   type        = string
   default     = null
+}
+
+variable "replication_bucket_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN for the replication destination bucket. Null keeps the module's AES256 default. Required when replication is enabled for an artifact bucket that also uses a customer-managed KMS key."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.replication_bucket_kms_key_arn == null ? true : can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/.+$", var.replication_bucket_kms_key_arn))
+    error_message = "replication_bucket_kms_key_arn must be a valid AWS KMS key ARN or null."
+  }
+
+  validation {
+    condition     = !(!var.enable_replication && var.replication_bucket_kms_key_arn != null)
+    error_message = "replication_bucket_kms_key_arn can only be set when enable_replication is true."
+  }
+
+  validation {
+    condition     = !(var.enable_replication && var.artifact_bucket_kms_key_arn != null && var.replication_bucket_kms_key_arn == null)
+    error_message = "replication_bucket_kms_key_arn must be set when enable_replication is true and artifact_bucket_kms_key_arn is configured, because SSE-KMS replication requires a destination KMS key."
+  }
 }
 
 # ---------------------------------------------------------------------------
