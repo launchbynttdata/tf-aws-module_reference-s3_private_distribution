@@ -16,7 +16,7 @@ distribution bucket collection module from the repository root.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.100, < 7.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 
 ## Modules
 
@@ -41,10 +41,10 @@ distribution bucket collection module from the repository root.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for test deployment. | `string` | `"us-west-1"` | no |
-| <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable replication in the root module. Defaults to false in this simple example to keep rollout/testing output focused on management principal behavior. | `bool` | `false` | no |
-| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Optional management principal ARNs for the module. If empty, the example falls back to the current execution principal ARN. | `list(string)` | `[]` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix for harness and module resources. | `string` | `"msix-s3-simple"` | no |
+| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Optional management principal ARNs for the module. If empty, the example falls back to the current execution principal ARN. | `list(string)` | `[]` | no |
 | <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | Optional pipeline role ARNs granted write access by the module. | `list(string)` | `[]` | no |
+| <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable replication in the root module. Defaults to false in this simple example to keep rollout/testing output focused on management principal behavior. | `bool` | `false` | no |
 
 ## Outputs
 

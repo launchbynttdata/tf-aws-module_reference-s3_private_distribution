@@ -21,15 +21,13 @@ repos:
     rev: v1.99.0
     hooks:
       - id: terraform_fmt
-      # terraform_validate requires `terraform init` which downloads private modules from
-      # terraform.registry.launch.nttdata.com. In CI, this requires TF_TOKEN credentials
-      # which are unavailable to pull_request workflows. Validation is still performed by
-      # the dedicated "Check Terraform" workflow in pull-request-check-terraform.yml which
-      # has proper auth configured. Skipping here prevents redundant failures in pre-commit.
-      # - id: terraform_validate
+      - id: terraform_validate
       - id: terraform_docs
-        # terraform_docs configuration is now in .terraform-docs.yaml files (one per directory)
-        # instead of via hook args to avoid path-doubling issues
+        args:
+          - --hook-config=--path-to-file=README.md
+          - --hook-config=--add-to-existing-file=true
+          - --hook-config=--create-file-if-not-exist=true
+          - --args=--sort=false
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
