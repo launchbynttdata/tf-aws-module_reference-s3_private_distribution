@@ -316,8 +316,8 @@ module "s3_privatelink" {
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.6.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.10 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.100, < 7.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.6 |
 
 ## Providers
@@ -374,8 +374,11 @@ module "s3_privatelink" {
 | <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enable S3 access logging for the artifact bucket. If enabled, logs can be sent to an auto-created logging bucket or to an externally-provided bucket. | `bool` | `true` | no |
 | <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Optional S3 bucket to which access logs should be written. If not provided and enable\_logging is true, a logging bucket will be created automatically. Must already exist and allow the artifact bucket to write logs. | `string` | `null` | no |
 | <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Path prefix for access logs written to the logging bucket. Only used if enable\_logging is true. | `string` | `"artifact-bucket-logs/"` | no |
+| <a name="input_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#input\_artifact\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for default encryption on the artifact bucket. Null keeps the module's AES256 default. | `string` | `null` | no |
+| <a name="input_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#input\_logging\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the module-managed logging bucket. Null keeps the module's AES256 default. Cannot be used with an external logging\_target\_bucket. | `string` | `null` | no |
 | <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable S3 replication to a destination bucket in the same or different region. If enabled, a replication destination bucket will be created. | `bool` | `true` | no |
 | <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | AWS region in which to create the replication destination bucket. Only used if enable\_replication is true. If not provided, defaults to the primary region (var.aws\_region). | `string` | `null` | no |
+| <a name="input_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#input\_replication\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the replication destination bucket. Null keeps the module's AES256 default. Required when replication is enabled for an artifact bucket that also uses a customer-managed KMS key. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags merged onto all taggable resources. | `map(string)` | `{}` | no |
 
 ## Outputs
@@ -384,11 +387,17 @@ module "s3_privatelink" {
 | ---- | ----------- |
 | <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name (ID) of the S3 artifact bucket. |
 | <a name="output_s3_bucket_arn"></a> [s3\_bucket\_arn](#output\_s3\_bucket\_arn) | ARN of the S3 artifact bucket. |
+| <a name="output_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#output\_artifact\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the artifact bucket. Null means the module is using its AES256 default encryption path. |
+| <a name="output_artifact_bucket_sse_algorithm"></a> [artifact\_bucket\_sse\_algorithm](#output\_artifact\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the artifact bucket. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint (e.g. vpce-0abc123). |
 | <a name="output_s3_vpce_dns_entries"></a> [s3\_vpce\_dns\_entries](#output\_s3\_vpce\_dns\_entries) | DNS entries for the S3 interface endpoint. Each entry contains dns\_name and hosted\_zone\_id. |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Resolved bucket-style hostname for the S3 interface endpoint (e.g. bucket.vpce-xxx.s3.us-west-1.vpce.amazonaws.com). Use as the base URL for private artifact downloads. |
 | <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging bucket. Returns the auto-created bucket name, the provided external target bucket name, or null when logging is disabled. |
 | <a name="output_logging_bucket_arn"></a> [logging\_bucket\_arn](#output\_logging\_bucket\_arn) | ARN of the S3 logging bucket (if created). |
+| <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Null means the module is using its AES256 default or the logging bucket is external/unmanaged. |
+| <a name="output_logging_bucket_sse_algorithm"></a> [logging\_bucket\_sse\_algorithm](#output\_logging\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the module-managed logging bucket. Returns null when logging is disabled or the logging bucket is external. |
 | <a name="output_replication_bucket_name"></a> [replication\_bucket\_name](#output\_replication\_bucket\_name) | Name of the S3 replication destination bucket (if created). Receives replicated objects from the artifact bucket. |
 | <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the S3 replication destination bucket (if created). |
+| <a name="output_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#output\_replication\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the replication destination bucket. Null means the module is using its AES256 default or replication is disabled. |
+| <a name="output_replication_bucket_sse_algorithm"></a> [replication\_bucket\_sse\_algorithm](#output\_replication\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the replication destination bucket. Returns null when replication is disabled. |
 <!-- END_TF_DOCS -->
