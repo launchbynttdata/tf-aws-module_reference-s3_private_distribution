@@ -27,9 +27,9 @@ repos:
       # the dedicated "Check Terraform" workflow in pull-request-check-terraform.yml which
       # has proper auth configured. Skipping here prevents redundant failures in pre-commit.
       # - id: terraform_validate
-      - id: terraform_docs
-        # terraform_docs configuration is now in .terraform-docs.yaml files (one per directory)
-        # instead of via hook args to avoid path-doubling issues
+      # - id: terraform_docs
+      #   # terraform_docs configuration is now in .terraform-docs.yaml files (one per directory)
+      #   # instead of via hook args to avoid path-doubling issues
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
