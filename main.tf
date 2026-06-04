@@ -31,9 +31,9 @@ resource "random_string" "suffix" {
 # ---------------------------------------------------------------------------
 
 module "artifacts_bucket" {
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
-  source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
-  version = "~> 1.1"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  # source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
+  # version = "~> 1.1"
 
   bucket_name                        = local.s3_bucket_name
   enable_versioning                  = var.enable_versioning
@@ -72,10 +72,10 @@ resource "aws_s3_bucket_policy" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "logging_bucket" {
-  count = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
-  source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
-  version = "~> 1.1"
+  count  = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  # source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
+  # version = "~> 1.1"
 
   bucket_name                        = local.logging_bucket_name_computed
   use_default_server_side_encryption = var.logging_bucket_kms_key_arn == null
@@ -108,9 +108,9 @@ resource "aws_s3_bucket_logging" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "s3_interface_vpce" {
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=0.1.0"
-  source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws"
-  version = "~> 0.1"
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=0.1.0"
+  # source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws"
+  # version = "~> 0.1"
 
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.s3"
@@ -131,9 +131,10 @@ module "s3_interface_vpce" {
 # ---------------------------------------------------------------------------
 
 module "replication_bucket" {
-  count   = var.enable_replication ? 1 : 0
-  source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
-  version = "~> 1.1"
+  count  = var.enable_replication ? 1 : 0
+  source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  # source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
+  # version = "~> 1.1"
 
   providers = {
     aws = aws.replication
