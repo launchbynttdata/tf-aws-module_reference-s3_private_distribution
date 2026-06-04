@@ -244,9 +244,9 @@ terraform destroy -var-file=test.tfvars
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.8.0 |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
+| <a name="provider_archive"></a> [archive](#provider\_archive) | ~> 2.4 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.100, < 7.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.6 |
 
 ## Modules
 

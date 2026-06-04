@@ -16,7 +16,7 @@ distribution bucket collection module from the repository root.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.100, < 7.0 |
 
 ## Modules
 

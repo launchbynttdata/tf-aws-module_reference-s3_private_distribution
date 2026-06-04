@@ -324,8 +324,8 @@ module "s3_privatelink" {
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.100, < 7.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.6 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
