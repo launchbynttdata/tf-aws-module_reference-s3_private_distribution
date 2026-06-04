@@ -144,11 +144,11 @@ This module documents a small set of Regula waiver rationales below for two reas
 
   These controls are implemented in Terraform resources in [main.tf](main.tf), but Regula evaluates Terraform plan JSON. For some resources (notably `aws_s3_bucket_policy`), plan values can be unknown until apply time, so Regula cannot always infer effective bucket behavior from the plan alone.
 
-2. Deferred CloudTrail scope owned outside this module:
+2. Deferred enhanced audit-event scope:
   - `FG_R00354`
   - `FG_R00355`
 
-  CloudTrail object-level data events are expected to be managed at the shared/account or organization logging layer, not exclusively inside this module.
+  This module covers S3 server access logging. Enhanced access-event telemetry (for example CloudTrail S3 data events) is not included in the current reference-module scope.
 
 Guidance for sync/upstream review:
 - Keep waiver rationale documented in inline comments near the relevant S3 policy resources in [main.tf](main.tf) and [examples/complete/main.tf](examples/complete/main.tf).
@@ -266,39 +266,11 @@ module "dr_distribution" {
 - Cross-region networking (Transit Gateway, VPC peering) is **not required** for this pattern - each region has its own independent VPCE talking to S3 regional endpoints. The replication is handled server-side by AWS.
 - This pattern is currently **not implemented as an example** in this repository due to the additional complexity of managing multi-region provider configurations and the replica bucket policy extension. It is documented here as to provide guidance as to how to make use of this reference module toward that pattern if required.
 
-### CloudTrail Object-Level Data Events
+### Enhanced Audit Events (Out Of Current Scope)
 
-For comprehensive audit trails of individual S3 GetObject and PutObject operations, configure **CloudTrail data events** at the organization or management account level:
+This reference module currently includes S3 server access logging controls only.
 
-1. Enable CloudTrail logging for S3 data events:
-   - Event source: `s3.amazonaws.com`
-   - Data resource type: `AWS::S3::Object`
-   - Filter to specific bucket ARNs or use `arn:aws:s3:::*/` for all buckets
-
-2. Store CloudTrail logs in a centralized logging bucket with appropriate retention and access controls.
-
-3. Example CloudTrail Terraform configuration:
-
-```hcl
-resource "aws_cloudtrail" "s3_data_events" {
-  name           = "s3-object-level-logging"
-  s3_bucket_name = "your-cloudtrail-bucket"
-
-  event_selector {
-    read_write_type           = "All"
-    include_management_events = false
-
-    data_resource {
-      type   = "AWS::S3::Object"
-      values = ["${module.s3_privatelink.s3_bucket_arn}/*"]
-    }
-  }
-
-  depends_on = [aws_s3_bucket_policy.cloudtrail]
-}
-```
-
-**Note**: CloudTrail data events carry additional costs and generate high volume logs. Implement filtering and lifecycle rules on the CloudTrail bucket to manage costs and retention.
+If your platform requires enhanced per-object audit telemetry (for example CloudTrail S3 data events), treat that as a separate control outside this module and enforce it through your broader logging architecture and governance standards.
 
 ### Lifecycle Management
 
@@ -344,8 +316,8 @@ module "s3_privatelink" {
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.10 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.100, < 7.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.6.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.6 |
 
 ## Providers
@@ -402,11 +374,8 @@ module "s3_privatelink" {
 | <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enable S3 access logging for the artifact bucket. If enabled, logs can be sent to an auto-created logging bucket or to an externally-provided bucket. | `bool` | `true` | no |
 | <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Optional S3 bucket to which access logs should be written. If not provided and enable\_logging is true, a logging bucket will be created automatically. Must already exist and allow the artifact bucket to write logs. | `string` | `null` | no |
 | <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Path prefix for access logs written to the logging bucket. Only used if enable\_logging is true. | `string` | `"artifact-bucket-logs/"` | no |
-| <a name="input_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#input\_artifact\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for default encryption on the artifact bucket. Null keeps the module's AES256 default. | `string` | `null` | no |
-| <a name="input_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#input\_logging\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the module-managed logging bucket. Null keeps the module's AES256 default. Cannot be used with an external logging\_target\_bucket. | `string` | `null` | no |
 | <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable S3 replication to a destination bucket in the same or different region. If enabled, a replication destination bucket will be created. | `bool` | `true` | no |
 | <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | AWS region in which to create the replication destination bucket. Only used if enable\_replication is true. If not provided, defaults to the primary region (var.aws\_region). | `string` | `null` | no |
-| <a name="input_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#input\_replication\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the replication destination bucket. Null keeps the module's AES256 default. Required when replication is enabled for an artifact bucket that also uses a customer-managed KMS key. | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags merged onto all taggable resources. | `map(string)` | `{}` | no |
 
 ## Outputs
@@ -415,17 +384,11 @@ module "s3_privatelink" {
 | ---- | ----------- |
 | <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name (ID) of the S3 artifact bucket. |
 | <a name="output_s3_bucket_arn"></a> [s3\_bucket\_arn](#output\_s3\_bucket\_arn) | ARN of the S3 artifact bucket. |
-| <a name="output_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#output\_artifact\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the artifact bucket. Null means the module is using its AES256 default encryption path. |
-| <a name="output_artifact_bucket_sse_algorithm"></a> [artifact\_bucket\_sse\_algorithm](#output\_artifact\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the artifact bucket. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint (e.g. vpce-0abc123). |
 | <a name="output_s3_vpce_dns_entries"></a> [s3\_vpce\_dns\_entries](#output\_s3\_vpce\_dns\_entries) | DNS entries for the S3 interface endpoint. Each entry contains dns\_name and hosted\_zone\_id. |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Resolved bucket-style hostname for the S3 interface endpoint (e.g. bucket.vpce-xxx.s3.us-west-1.vpce.amazonaws.com). Use as the base URL for private artifact downloads. |
 | <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging bucket. Returns the auto-created bucket name, the provided external target bucket name, or null when logging is disabled. |
 | <a name="output_logging_bucket_arn"></a> [logging\_bucket\_arn](#output\_logging\_bucket\_arn) | ARN of the S3 logging bucket (if created). |
-| <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Null means the module is using its AES256 default or the logging bucket is external/unmanaged. |
-| <a name="output_logging_bucket_sse_algorithm"></a> [logging\_bucket\_sse\_algorithm](#output\_logging\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the module-managed logging bucket. Returns null when logging is disabled or the logging bucket is external. |
 | <a name="output_replication_bucket_name"></a> [replication\_bucket\_name](#output\_replication\_bucket\_name) | Name of the S3 replication destination bucket (if created). Receives replicated objects from the artifact bucket. |
 | <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the S3 replication destination bucket (if created). |
-| <a name="output_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#output\_replication\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the replication destination bucket. Null means the module is using its AES256 default or replication is disabled. |
-| <a name="output_replication_bucket_sse_algorithm"></a> [replication\_bucket\_sse\_algorithm](#output\_replication\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the replication destination bucket. Returns null when replication is disabled. |
 <!-- END_TF_DOCS -->
