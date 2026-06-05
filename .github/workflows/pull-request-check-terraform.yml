@@ -6,8 +6,46 @@ on:
     branches: [ main ]
 
 jobs:
+  preflight-registry-access:
+    name: "Preflight Registry Access"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - id: check-registry-discovery
+        name: Check Terraform Registry discovery endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking Terraform registry discovery endpoint..."
+          curl -fsSL "https://terraform.registry.launch.nttdata.com/.well-known/terraform.json"
+
+      - id: check-registry-module-metadata
+        name: Check Terraform Registry module metadata endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking module metadata endpoint for module_collection/s3_bucket/aws..."
+          curl -fsSL "https://terraform.registry.launch.nttdata.com/v1/modules/module_collection/s3_bucket/aws/versions"
+
+      - id: check-registry-module-download-target
+        name: Check Terraform Registry module download endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking module download endpoint for module_collection/s3_bucket/aws/1.1.0..."
+          headers=$(mktemp)
+          curl -fsS -D "$headers" -o /dev/null "https://terraform.registry.launch.nttdata.com/v1/modules/module_collection/s3_bucket/aws/1.1.0/download"
+          echo "Response headers:"
+          cat "$headers"
+          echo "Validating x-terraform-get header is present..."
+          grep -qi '^x-terraform-get:' "$headers"
+
   check:
     name: "Reusable Workflow"
+    needs:
+      - preflight-registry-access
     permissions:
       contents: read
       pull-requests: read

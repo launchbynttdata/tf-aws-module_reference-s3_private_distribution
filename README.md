@@ -332,10 +332,10 @@ module "s3_privatelink" {
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_artifacts_bucket"></a> [artifacts\_bucket](#module\_artifacts\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
-| <a name="module_logging_bucket"></a> [logging\_bucket](#module\_logging\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
-| <a name="module_s3_interface_vpce"></a> [s3\_interface\_vpce](#module\_s3\_interface\_vpce) | git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint | 0.1.0 |
-| <a name="module_replication_bucket"></a> [replication\_bucket](#module\_replication\_bucket) | git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket | 1.1.0 |
+| <a name="module_artifacts_bucket"></a> [artifacts\_bucket](#module\_artifacts\_bucket) | terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws | ~> 1.1 |
+| <a name="module_logging_bucket"></a> [logging\_bucket](#module\_logging\_bucket) | terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws | ~> 1.1 |
+| <a name="module_s3_interface_vpce"></a> [s3\_interface\_vpce](#module\_s3\_interface\_vpce) | terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws | ~> 0.1 |
+| <a name="module_replication_bucket"></a> [replication\_bucket](#module\_replication\_bucket) | terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws | ~> 1.1 |
 
 ## Resources
 
