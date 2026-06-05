@@ -31,7 +31,6 @@ resource "random_string" "suffix" {
 # ---------------------------------------------------------------------------
 
 module "artifacts_bucket" {
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
   source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
   version = "~> 1.1"
 
@@ -72,8 +71,7 @@ resource "aws_s3_bucket_policy" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "logging_bucket" {
-  count = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  count   = var.enable_logging && var.logging_target_bucket == null ? 1 : 0
   source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
   version = "~> 1.1"
 
@@ -108,7 +106,6 @@ resource "aws_s3_bucket_logging" "artifacts" {
 # ---------------------------------------------------------------------------
 
 module "s3_interface_vpce" {
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_primitive-vpc_endpoint?ref=0.1.0"
   source  = "terraform.registry.launch.nttdata.com/module_primitive/vpc_endpoint/aws"
   version = "~> 0.1"
 
@@ -131,8 +128,7 @@ module "s3_interface_vpce" {
 # ---------------------------------------------------------------------------
 
 module "replication_bucket" {
-  count = var.enable_replication ? 1 : 0
-  # source = "git::https://github.com/launchbynttdata/tf-aws-module_collection-s3_bucket?ref=1.1.0"
+  count   = var.enable_replication ? 1 : 0
   source  = "terraform.registry.launch.nttdata.com/module_collection/s3_bucket/aws"
   version = "~> 1.1"
 
