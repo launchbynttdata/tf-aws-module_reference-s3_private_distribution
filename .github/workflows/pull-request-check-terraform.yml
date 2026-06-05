@@ -13,34 +13,123 @@ jobs:
     permissions:
       contents: read
     steps:
+      - id: network-diagnostics
+        name: Network diagnostics (non-blocking)
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="terraform.registry.launch.nttdata.com"
+
+          echo "[START] Network diagnostics for ${host}"
+
+          echo "[INFO] Resolver configuration"
+          cat /etc/resolv.conf || true
+
+          echo "[INFO] DNS lookup via getent"
+          getent hosts "${host}" || true
+
+          if command -v dig >/dev/null 2>&1; then
+            echo "[INFO] DNS lookup via dig"
+            dig +short "${host}" || true
+          elif command -v nslookup >/dev/null 2>&1; then
+            echo "[INFO] DNS lookup via nslookup"
+            nslookup "${host}" || true
+          else
+            echo "[WARN] dig/nslookup not available on runner"
+          fi
+
+          if command -v ping >/dev/null 2>&1; then
+            echo "[INFO] Ping test (non-blocking)"
+            ping -c 3 -W 2 "${host}" || true
+          else
+            echo "[WARN] ping not available on runner"
+          fi
+
+          if command -v traceroute >/dev/null 2>&1; then
+            echo "[INFO] Traceroute test (non-blocking)"
+            traceroute -n -w 2 -q 1 -m 10 "${host}" || true
+          elif command -v tracepath >/dev/null 2>&1; then
+            echo "[INFO] Tracepath test (non-blocking)"
+            tracepath -n "${host}" || true
+          else
+            echo "[WARN] traceroute/tracepath not available on runner"
+          fi
+
+          echo "[END] Network diagnostics for ${host}"
+
       - id: check-registry-discovery
         name: Check Terraform Registry discovery endpoint
         shell: bash
         run: |
           set -euo pipefail
-          echo "Checking Terraform registry discovery endpoint..."
-          curl -fsSL "https://terraform.registry.launch.nttdata.com/.well-known/terraform.json"
+          url="https://terraform.registry.launch.nttdata.com/.well-known/terraform.json"
+          headers=$(mktemp)
+          body=$(mktemp)
+
+          echo "[START] Discovery endpoint check"
+          echo "[INFO] URL: ${url}"
+          http_code=$(curl -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' "${url}")
+          echo "[INFO] HTTP status: ${http_code}"
+          echo "[INFO] Response headers:"
+          cat "${headers}"
+          echo "[INFO] Response body (first 500 chars):"
+          head -c 500 "${body}" || true
+          echo
+          if [[ ! "${http_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "[ERROR] Discovery endpoint returned non-2xx status: ${http_code}"
+            exit 1
+          fi
+          echo "[END] Discovery endpoint check"
 
       - id: check-registry-module-metadata
         name: Check Terraform Registry module metadata endpoint
         shell: bash
         run: |
           set -euo pipefail
-          echo "Checking module metadata endpoint for module_collection/s3_bucket/aws..."
-          curl -fsSL "https://terraform.registry.launch.nttdata.com/v1/modules/module_collection/s3_bucket/aws/versions"
+          url="https://terraform.registry.launch.nttdata.com/v1/modules/module_collection/s3_bucket/aws/versions"
+          headers=$(mktemp)
+          body=$(mktemp)
+
+          echo "[START] Module metadata endpoint check"
+          echo "[INFO] URL: ${url}"
+          http_code=$(curl -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' "${url}")
+          echo "[INFO] HTTP status: ${http_code}"
+          echo "[INFO] Response headers:"
+          cat "${headers}"
+          echo "[INFO] Response body (first 500 chars):"
+          head -c 500 "${body}" || true
+          echo
+          if [[ ! "${http_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "[ERROR] Module metadata endpoint returned non-2xx status: ${http_code}"
+            exit 1
+          fi
+          echo "[END] Module metadata endpoint check"
 
       - id: check-registry-module-download-target
         name: Check Terraform Registry module download endpoint
         shell: bash
         run: |
           set -euo pipefail
-          echo "Checking module download endpoint for module_collection/s3_bucket/aws/1.1.0..."
+          url="https://terraform.registry.launch.nttdata.com/v1/modules/module_collection/s3_bucket/aws/1.1.0/download"
           headers=$(mktemp)
-          curl -fsS -D "$headers" -o /dev/null "https://terraform.registry.launch.nttdata.com/v1/modules/module_collection/s3_bucket/aws/1.1.0/download"
-          echo "Response headers:"
-          cat "$headers"
-          echo "Validating x-terraform-get header is present..."
-          grep -qi '^x-terraform-get:' "$headers"
+          body=$(mktemp)
+
+          echo "[START] Module download endpoint check"
+          echo "[INFO] URL: ${url}"
+          http_code=$(curl -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' "${url}")
+          echo "[INFO] HTTP status: ${http_code}"
+          echo "[INFO] Response headers:"
+          cat "${headers}"
+          echo "[INFO] Response body (first 500 chars):"
+          head -c 500 "${body}" || true
+          echo
+          if [[ ! "${http_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "[ERROR] Module download endpoint returned non-2xx status: ${http_code}"
+            exit 1
+          fi
+          echo "[INFO] Validating x-terraform-get header is present"
+          grep -qi '^x-terraform-get:' "${headers}"
+          echo "[END] Module download endpoint check"
 
   check:
     name: "Reusable Workflow"
