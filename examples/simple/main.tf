@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Simple Example - Minimal Test Harness
 #
-# Validates the private distribution bucket collection module with the minimum required inputs
+# Validates the private S3 distribution reference module with the minimum required inputs
 # and secure-by-default configuration:
 #   - Single-AZ private subnet for endpoint ENIs
 #   - No NAT gateway (endpoint-only egress model)
@@ -109,11 +109,11 @@ resource "aws_security_group" "vpce" {
 }
 
 # ---------------------------------------------------------------------------
-# Private Distribution Bucket Collection Module
+# Private S3 Distribution Reference Module
 # ---------------------------------------------------------------------------
 
 module "s3_privatelink" {
-  source = "../.." # private distribution bucket collection module root
+  source = "../.." # private S3 distribution reference module root
 
   # Required - networking context
   vpc_id                  = aws_vpc.main.id
@@ -128,5 +128,5 @@ module "s3_privatelink" {
   pipeline_role_arns        = var.pipeline_role_arns
   enable_replication        = var.enable_replication
 
-  # All other inputs use secure defaults (see collection module variables.tf)
+  # All other inputs use secure defaults (see reference module variables.tf)
 }

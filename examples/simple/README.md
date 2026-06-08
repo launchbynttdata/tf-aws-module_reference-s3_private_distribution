@@ -1,7 +1,7 @@
 # Simple Example
 
 This example demonstrates a minimal harness for invoking the private
-distribution bucket collection module from the repository root.
+S3 distribution reference module from the repository root.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -50,7 +50,7 @@ distribution bucket collection module from the repository root.
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name of the S3 artifact bucket created by the collection module. |
+| <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name of the S3 artifact bucket created by the reference module. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint. |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Bucket-style hostname for the interface endpoint. |
 <!-- END_TF_DOCS -->

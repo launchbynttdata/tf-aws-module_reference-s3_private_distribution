@@ -1,5 +1,5 @@
 output "s3_bucket_name" {
-  description = "Name of the S3 artifact bucket created by the collection module."
+  description = "Name of the S3 artifact bucket created by the reference module."
   value       = module.s3_privatelink.s3_bucket_name
 }
 

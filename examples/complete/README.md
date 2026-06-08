@@ -27,7 +27,7 @@ It validates end-to-end behavior using a **Lambda function** over private networ
 ## Prerequisites
 
 1. AWS credentials configured locally (`aws sts get-caller-identity` succeeds)
-2. Terraform `>= 1.6.0`
+2. Terraform `~> 1.10`
 
 ## Usage
 
@@ -166,7 +166,6 @@ terraform destroy -var-file=test.tfvars
 Default PR validation for this example is centered on `test.tfvars`.
 
 Active profile set in this folder is intentionally baseline-only (`test.tfvars`).
-Deferred profile variants were preserved under `_scratch/2026-06-03-PRCommentClean/slice-b-candidates/` for potential future Slice B PR recovery.
 
 Expected checks:
 

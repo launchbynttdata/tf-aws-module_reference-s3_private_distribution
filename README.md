@@ -130,7 +130,7 @@ Expected baseline assertions:
 - Logging, replication, versioning, and lifecycle controls are configured when enabled in baseline inputs.
 
 Exploratory and degraded profile permutations are intentionally deferred from the default review path and tracked as follow-up work.
-Deferred variants are preserved under `_scratch/2026-06-03-PRCommentClean/slice-b-candidates/` for future Slice B recovery.
+Deferred profile variants are tracked as potential future Slice B follow-up work.
 
 ## Regula Waiver Rationale (Known Plan-Time Limitations)
 
