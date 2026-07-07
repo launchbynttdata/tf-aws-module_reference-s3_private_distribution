@@ -14,6 +14,15 @@ enable_lifecycle   = true
 enable_logging     = true
 enable_replication = true
 
+# Keep make test baseline compatible with an interface-only endpoint stack.
+# AWS requires an S3 Gateway endpoint when
+# private_dns_only_for_inbound_resolver_endpoint = true.
+# The complete example does not create that gateway endpoint.
+vpce_private_dns_enabled = true
+vpce_dns_options = {
+  private_dns_only_for_inbound_resolver_endpoint = false
+}
+
 # ---------------------------------------------------------------------------
 # Access Control
 #
