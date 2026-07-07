@@ -174,11 +174,12 @@ module "s3_privatelink" {
   vpce_subnet_ids         = [for s in module.private_subnets : s.subnet_id]
   vpce_security_group_ids = [module.s3_vpce_sg.id]
 
-  aws_region           = var.aws_region
-  name_prefix          = var.name_prefix
-  vpce_auto_accept     = var.vpce_auto_accept
-  vpce_ip_address_type = var.vpce_ip_address_type
-  vpce_dns_options     = var.vpce_dns_options
+  aws_region               = var.aws_region
+  name_prefix              = var.name_prefix
+  vpce_auto_accept         = var.vpce_auto_accept
+  vpce_private_dns_enabled = var.vpce_private_dns_enabled
+  vpce_ip_address_type     = var.vpce_ip_address_type
+  vpce_dns_options         = var.vpce_dns_options
 
   management_principal_arns           = local.effective_management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns

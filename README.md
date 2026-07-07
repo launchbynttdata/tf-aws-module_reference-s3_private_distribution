@@ -55,6 +55,34 @@ If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` 
 
 ---
 
+## DNS and Client Access Guidance
+
+### Private DNS behavior
+
+- Use `vpce_private_dns_enabled` to control whether private DNS is enabled on the S3 interface endpoint.
+- Default is `false` for backward compatibility.
+- When enabled, VPC resolver behavior can map supported S3 hostnames to endpoint ENIs.
+- DNS resolution alone is not sufficient for access. Effective access still depends on network path (subnets, route tables, security groups) and endpoint/bucket policy conditions.
+
+### Recommended client access pattern
+
+- Use name-based access over endpoint DNS hostnames.
+- Do not pin client behavior to endpoint ENI IP addresses.
+- Prefer module outputs for host discovery so consumers do not hardcode endpoint DNS assumptions.
+
+### TLS hostname guidance
+
+- Use AWS endpoint-compatible DNS names so TLS hostname verification remains valid.
+- Prefer hostnames returned by module outputs (`s3_vpce_bucket_host` and `s3_vpce_validation_hosts`) over custom hostname construction.
+
+### Downstream validation guidance
+
+- Downstream consumers should use `s3_vpce_validation_hosts` as the ordered list of DNS candidates for health checks and download validation.
+- Avoid manually constructing `vpce-...` hostnames from endpoint IDs.
+- Keep existing compatibility outputs (`s3_vpce_dns_entries`, `s3_vpce_bucket_host`) for legacy workflows, but prefer the explicit regional/zonal and validation-host outputs for new automation.
+
+---
+
 ## Getting Started
 
 Required files and setup:
@@ -360,6 +388,7 @@ module "s3_privatelink" {
 | <a name="input_vpce_security_group_ids"></a> [vpce\_security\_group\_ids](#input\_vpce\_security\_group\_ids) | Security group IDs to associate with the endpoint ENIs. Must permit inbound HTTPS (443) from consumer CIDRs. | `list(string)` | n/a | yes |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region where resources are deployed (e.g. us-west-1). Used to construct the S3 endpoint service name. | `string` | n/a | yes |
 | <a name="input_vpce_auto_accept"></a> [vpce\_auto\_accept](#input\_vpce\_auto\_accept) | Whether to auto-accept the endpoint request. Typically false unless using a same-account endpoint service pattern. | `bool` | `false` | no |
+| <a name="input_vpce_private_dns_enabled"></a> [vpce\_private\_dns\_enabled](#input\_vpce\_private\_dns\_enabled) | Whether to enable private DNS for the S3 interface endpoint in the VPC resolver path. When true, VPC DNS can resolve supported S3 endpoint hostnames to the endpoint ENIs. | `bool` | `false` | no |
 | <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint. Valid values: ipv4, dualstack, ipv6. Null uses AWS service default. | `string` | `null` | no |
 | <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS options for the interface endpoint. dns\_record\_ip\_type supports A/AAAA behavior (for example ipv4 or dualstack). | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Base naming prefix applied to all resources created by this module. | `string` | `"msix-s3"` | no |
@@ -391,7 +420,11 @@ module "s3_privatelink" {
 | <a name="output_artifact_bucket_sse_algorithm"></a> [artifact\_bucket\_sse\_algorithm](#output\_artifact\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the artifact bucket. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint (e.g. vpce-0abc123). |
 | <a name="output_s3_vpce_dns_entries"></a> [s3\_vpce\_dns\_entries](#output\_s3\_vpce\_dns\_entries) | DNS entries for the S3 interface endpoint. Each entry contains dns\_name and hosted\_zone\_id. |
+| <a name="output_s3_vpce_private_dns_enabled"></a> [s3\_vpce\_private\_dns\_enabled](#output\_s3\_vpce\_private\_dns\_enabled) | Whether private DNS is enabled for the S3 interface endpoint. |
+| <a name="output_s3_vpce_regional_dns_names"></a> [s3\_vpce\_regional\_dns\_names](#output\_s3\_vpce\_regional\_dns\_names) | Regional DNS names discovered from the S3 interface endpoint DNS entries. |
+| <a name="output_s3_vpce_zonal_dns_names"></a> [s3\_vpce\_zonal\_dns\_names](#output\_s3\_vpce\_zonal\_dns\_names) | Zonal DNS names discovered from the S3 interface endpoint DNS entries. |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Resolved bucket-style hostname for the S3 interface endpoint (e.g. bucket.vpce-xxx.s3.us-west-1.vpce.amazonaws.com). Use as the base URL for private artifact downloads. |
+| <a name="output_s3_vpce_validation_hosts"></a> [s3\_vpce\_validation\_hosts](#output\_s3\_vpce\_validation\_hosts) | Ordered DNS host candidates for downstream validation. Starts with the preferred bucket-style host and includes deterministic fallbacks. |
 | <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging bucket. Returns the auto-created bucket name, the provided external target bucket name, or null when logging is disabled. |
 | <a name="output_logging_bucket_arn"></a> [logging\_bucket\_arn](#output\_logging\_bucket\_arn) | ARN of the S3 logging bucket (if created). |
 | <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Null means the module is using its AES256 default or the logging bucket is external/unmanaged. |

@@ -10,6 +10,12 @@ variable "vpce_auto_accept" {
   default     = false
 }
 
+variable "vpce_private_dns_enabled" {
+  description = "Whether to enable private DNS for the S3 interface endpoint."
+  type        = bool
+  default     = true
+}
+
 variable "vpce_ip_address_type" {
   description = "IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default."
   type        = string

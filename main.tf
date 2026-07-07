@@ -112,7 +112,7 @@ module "s3_interface_vpce" {
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type   = "Interface"
-  private_dns_enabled = false
+  private_dns_enabled = var.vpce_private_dns_enabled
   auto_accept         = var.vpce_auto_accept
   ip_address_type     = var.vpce_ip_address_type
   dns_options         = var.vpce_dns_options
@@ -350,19 +350,59 @@ locals {
     ]
   )))
 
-  s3_vpce_wildcard_dns_candidates = [
-    for entry in module.s3_interface_vpce.dns_entry : entry.dns_name if startswith(entry.dns_name, "*.")
+  s3_vpce_dns_names = [
+    for entry in module.s3_interface_vpce.dns_entry : entry.dns_name
   ]
 
-  s3_vpce_bucket_host = (
+  s3_vpce_regional_dns_names = [
+    for dns_name in local.s3_vpce_dns_names :
+    dns_name if can(regex("^(\\*\\.)?vpce-[a-z0-9-]+\\.s3\\.${var.aws_region}\\.vpce\\.amazonaws\\.com$", dns_name))
+  ]
+
+  s3_vpce_zonal_dns_names = [
+    for dns_name in local.s3_vpce_dns_names :
+    dns_name if can(regex("^(\\*\\.)?vpce-[a-z0-9-]+-[a-z]{2}-[a-z]+-[0-9][a-z]\\.s3\\.${var.aws_region}\\.vpce\\.amazonaws\\.com$", dns_name))
+  ]
+
+  s3_vpce_wildcard_dns_candidates = [
+    for dns_name in local.s3_vpce_dns_names : dns_name if startswith(dns_name, "*.")
+  ]
+
+  s3_vpce_preferred_wildcard_dns_name = (
     length([
-      for name in local.s3_vpce_wildcard_dns_candidates : name if !strcontains(name, "-${var.aws_region}")
-      ]) > 0 ? replace([
-      for name in local.s3_vpce_wildcard_dns_candidates : name if !strcontains(name, "-${var.aws_region}")
-      ][0], "*.", "bucket.") : (
-      length(local.s3_vpce_wildcard_dns_candidates) > 0 ? replace(local.s3_vpce_wildcard_dns_candidates[0], "*.", "bucket.") : "bucket.${module.s3_interface_vpce.id}.s3.${var.aws_region}.vpce.amazonaws.com"
+      for dns_name in local.s3_vpce_regional_dns_names : dns_name if startswith(dns_name, "*.")
+      ]) > 0 ? [
+      for dns_name in local.s3_vpce_regional_dns_names : dns_name if startswith(dns_name, "*.")
+      ][0] : (
+      length([
+        for dns_name in local.s3_vpce_zonal_dns_names : dns_name if startswith(dns_name, "*.")
+        ]) > 0 ? [
+        for dns_name in local.s3_vpce_zonal_dns_names : dns_name if startswith(dns_name, "*.")
+        ][0] : (
+        length(local.s3_vpce_wildcard_dns_candidates) > 0 ? local.s3_vpce_wildcard_dns_candidates[0] : null
+      )
     )
   )
+
+  s3_vpce_bucket_host_fallback = "bucket.${module.s3_interface_vpce.id}.s3.${var.aws_region}.vpce.amazonaws.com"
+
+  s3_vpce_bucket_host = (
+    local.s3_vpce_preferred_wildcard_dns_name != null ? replace(local.s3_vpce_preferred_wildcard_dns_name, "*.", "bucket.") : local.s3_vpce_bucket_host_fallback
+  )
+
+  s3_vpce_validation_hosts = distinct(compact(concat(
+    [local.s3_vpce_bucket_host],
+    [
+      for dns_name in local.s3_vpce_regional_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
+    ],
+    [
+      for dns_name in local.s3_vpce_zonal_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
+    ],
+    [local.s3_vpce_bucket_host_fallback],
+    [
+      for dns_name in local.s3_vpce_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
+    ]
+  )))
 
   vpce_allowed_bucket_arns = distinct(concat(
     [module.artifacts_bucket.arn],

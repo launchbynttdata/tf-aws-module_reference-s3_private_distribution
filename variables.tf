@@ -63,6 +63,12 @@ variable "vpce_auto_accept" {
   default     = false
 }
 
+variable "vpce_private_dns_enabled" {
+  description = "Whether to enable private DNS for the S3 interface endpoint in the VPC resolver path. When true, VPC DNS can resolve supported S3 endpoint hostnames to the endpoint ENIs."
+  type        = bool
+  default     = false
+}
+
 variable "vpce_ip_address_type" {
   description = "IP address type for the interface endpoint. Valid values: ipv4, dualstack, ipv6. Null uses AWS service default."
   type        = string

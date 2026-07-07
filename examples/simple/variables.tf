@@ -22,6 +22,12 @@ variable "pipeline_role_arns" {
   default     = []
 }
 
+variable "vpce_private_dns_enabled" {
+  description = "Whether to enable private DNS for the S3 interface endpoint in this example."
+  type        = bool
+  default     = false
+}
+
 variable "enable_replication" {
   description = "Enable replication in the root module. Defaults to false in this simple example to keep rollout/testing output focused on management principal behavior."
   type        = bool

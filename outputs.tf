@@ -41,9 +41,29 @@ output "s3_vpce_dns_entries" {
   value       = module.s3_interface_vpce.dns_entry
 }
 
+output "s3_vpce_private_dns_enabled" {
+  description = "Whether private DNS is enabled for the S3 interface endpoint."
+  value       = var.vpce_private_dns_enabled
+}
+
+output "s3_vpce_regional_dns_names" {
+  description = "Regional DNS names discovered from the S3 interface endpoint DNS entries."
+  value       = local.s3_vpce_regional_dns_names
+}
+
+output "s3_vpce_zonal_dns_names" {
+  description = "Zonal DNS names discovered from the S3 interface endpoint DNS entries."
+  value       = local.s3_vpce_zonal_dns_names
+}
+
 output "s3_vpce_bucket_host" {
   description = "Resolved bucket-style hostname for the S3 interface endpoint (e.g. bucket.vpce-xxx.s3.us-west-1.vpce.amazonaws.com). Use as the base URL for private artifact downloads."
   value       = local.s3_vpce_bucket_host
+}
+
+output "s3_vpce_validation_hosts" {
+  description = "Ordered DNS host candidates for downstream validation. Starts with the preferred bucket-style host and includes deterministic fallbacks."
+  value       = local.s3_vpce_validation_hosts
 }
 
 output "logging_bucket_name" {
