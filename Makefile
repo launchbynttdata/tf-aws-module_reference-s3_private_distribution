@@ -322,12 +322,6 @@ else
 	$(info "make go/lint has been disabled!")
 endif
 
-.PHONY: test
-test:: tfmodule/plan
-	$(call banner_start,test,terraform planning complete; starting Go test phase)
-	$(MAKE) go/test
-	$(call banner_end,test,Go test phase complete)
-
 # ==============================================================================
 # Targets - Terraform module
 # ==============================================================================
@@ -401,3 +395,6 @@ test::
 	$(call banner_start,test,starting Terraform planning stage)
 	$(MAKE) tfmodule/plan
 	$(call banner_end,test,terraform planning stage complete)
+	$(call banner_start,test,terraform planning complete; starting Go test phase)
+	$(MAKE) go/test
+	$(call banner_end,test,Go test phase complete)
