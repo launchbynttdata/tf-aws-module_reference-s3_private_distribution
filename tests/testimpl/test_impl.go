@@ -21,12 +21,16 @@ import (
 )
 
 type validationContext struct {
-	region               string
-	functionName         string
-	bucketName           string
-	disallowedBucketName string
-	lambdaClient         *lambda.Client
-	awsCfg               aws.Config
+	region                         string
+	functionName                   string
+	bucketName                     string
+	disallowedBucketName           string
+	loggingBucketName              string
+	shouldVerifyLoggingBucketGone  bool
+	replicationBucketName          string
+	shouldVerifyReplicationGone    bool
+	lambdaClient                   *lambda.Client
+	awsCfg                         aws.Config
 }
 
 type validationResult struct {
@@ -126,13 +130,20 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 		verifyBucketEncryptionConfiguration(t, awsCfg, replicationBucketName, replicationBucketSSEAlgorithm, replicationBucketKMSKeyArn)
 	}
 
+	shouldVerifyLoggingBucketGone := loggingBucketName != "" && loggingBucketSSEAlgorithm != ""
+	shouldVerifyReplicationGone := replicationBucketName != "" && replicationBucketArn != ""
+
 	return validationContext{
-		region:               region,
-		functionName:         functionName,
-		bucketName:           bucketName,
-		disallowedBucketName: disallowedBucketName,
-		lambdaClient:         lambdaClient,
-		awsCfg:               awsCfg,
+		region:                       region,
+		functionName:                 functionName,
+		bucketName:                   bucketName,
+		disallowedBucketName:         disallowedBucketName,
+		loggingBucketName:            loggingBucketName,
+		shouldVerifyLoggingBucketGone: shouldVerifyLoggingBucketGone,
+		replicationBucketName:        replicationBucketName,
+		shouldVerifyReplicationGone:  shouldVerifyReplicationGone,
+		lambdaClient:                 lambdaClient,
+		awsCfg:                       awsCfg,
 	}
 }
 
@@ -281,6 +292,26 @@ func verifyResourcesDestroyed(t *testing.T, v validationContext) {
 	require.Errorf(t, err, "disallowed bucket %s should not exist after destroy", v.disallowedBucketName)
 	assert.Truef(t, errors.As(err, &notFound2),
 		"disallowed bucket %s: expected NotFound, got %v", v.disallowedBucketName, err)
+
+	if v.shouldVerifyLoggingBucketGone {
+		_, err = s3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{
+			Bucket: aws.String(v.loggingBucketName),
+		})
+		var loggingNotFound *s3types.NotFound
+		require.Errorf(t, err, "logging bucket %s should not exist after destroy", v.loggingBucketName)
+		assert.Truef(t, errors.As(err, &loggingNotFound),
+			"logging bucket %s: expected NotFound, got %v", v.loggingBucketName, err)
+	}
+
+	if v.shouldVerifyReplicationGone {
+		_, err = s3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{
+			Bucket: aws.String(v.replicationBucketName),
+		})
+		var replicationNotFound *s3types.NotFound
+		require.Errorf(t, err, "replication bucket %s should not exist after destroy", v.replicationBucketName)
+		assert.Truef(t, errors.As(err, &replicationNotFound),
+			"replication bucket %s: expected NotFound, got %v", v.replicationBucketName, err)
+	}
 
 	// Lambda function must be gone.
 	_, err = v.lambdaClient.GetFunction(context.Background(), &lambda.GetFunctionInput{
