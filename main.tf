@@ -354,7 +354,7 @@ locals {
     for entry in module.s3_interface_vpce.dns_entry : entry.dns_name
   ]
 
-  s3_vpce_regional_dns_names = [
+  s3_vpce_all_regional_dns_names = [
     for dns_name in local.s3_vpce_dns_names :
     dns_name if can(regex("^(\\*\\.)?vpce-[a-z0-9-]+\\.s3\\.${var.aws_region}\\.vpce\\.amazonaws\\.com$", dns_name))
   ]
@@ -362,6 +362,11 @@ locals {
   s3_vpce_zonal_dns_names = [
     for dns_name in local.s3_vpce_dns_names :
     dns_name if can(regex("^(\\*\\.)?vpce-[a-z0-9-]+-[a-z]{2}-[a-z]+-[0-9][a-z]\\.s3\\.${var.aws_region}\\.vpce\\.amazonaws\\.com$", dns_name))
+  ]
+
+  s3_vpce_regional_dns_names = [
+    for dns_name in local.s3_vpce_all_regional_dns_names :
+    dns_name if !contains(local.s3_vpce_zonal_dns_names, dns_name)
   ]
 
   s3_vpce_wildcard_dns_candidates = [
