@@ -350,9 +350,9 @@ locals {
     ]
   )))
 
-  s3_vpce_dns_names = [
+  s3_vpce_dns_names = sort([
     for entry in module.s3_interface_vpce.dns_entry : entry.dns_name
-  ]
+  ])
 
   s3_vpce_all_regional_dns_names = [
     for dns_name in local.s3_vpce_dns_names :
