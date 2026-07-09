@@ -21,16 +21,16 @@ import (
 )
 
 type validationContext struct {
-	region                         string
-	functionName                   string
-	bucketName                     string
-	disallowedBucketName           string
-	loggingBucketName              string
-	shouldVerifyLoggingBucketGone  bool
-	replicationBucketName          string
-	shouldVerifyReplicationGone    bool
-	lambdaClient                   *lambda.Client
-	awsCfg                         aws.Config
+	region                        string
+	functionName                  string
+	bucketName                    string
+	disallowedBucketName          string
+	loggingBucketName             string
+	shouldVerifyLoggingBucketGone bool
+	replicationBucketName         string
+	shouldVerifyReplicationGone   bool
+	lambdaClient                  *lambda.Client
+	awsCfg                        aws.Config
 }
 
 type validationResult struct {
@@ -134,16 +134,16 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	shouldVerifyReplicationGone := replicationBucketName != "" && replicationBucketArn != ""
 
 	return validationContext{
-		region:                       region,
-		functionName:                 functionName,
-		bucketName:                   bucketName,
-		disallowedBucketName:         disallowedBucketName,
-		loggingBucketName:            loggingBucketName,
+		region:                        region,
+		functionName:                  functionName,
+		bucketName:                    bucketName,
+		disallowedBucketName:          disallowedBucketName,
+		loggingBucketName:             loggingBucketName,
 		shouldVerifyLoggingBucketGone: shouldVerifyLoggingBucketGone,
-		replicationBucketName:        replicationBucketName,
-		shouldVerifyReplicationGone:  shouldVerifyReplicationGone,
-		lambdaClient:                 lambdaClient,
-		awsCfg:                       awsCfg,
+		replicationBucketName:         replicationBucketName,
+		shouldVerifyReplicationGone:   shouldVerifyReplicationGone,
+		lambdaClient:                  lambdaClient,
+		awsCfg:                        awsCfg,
 	}
 }
 
