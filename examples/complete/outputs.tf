@@ -85,5 +85,5 @@ output "replication_bucket_kms_key_arn" {
 
 output "external_logging_target_bucket_name" {
   description = "Name of the self-managed external logging target bucket created by this example. Referenced when use_external_logging_target = true."
-  value       = var.use_external_logging_target ? aws_s3_bucket.external_logging_target[0].id : null
+  value       = var.use_external_logging_target ? aws_s3_bucket.external_logging_target[0].id : ""
 }
