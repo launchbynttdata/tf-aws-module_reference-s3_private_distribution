@@ -359,14 +359,19 @@ locals {
     dns_name => split(split(replace(dns_name, "*.", ""), ".")[0], "-")
   }
 
+  s3_vpce_dns_first_labels = {
+    for dns_name in local.s3_vpce_dns_names :
+    dns_name => split(replace(dns_name, "*.", ""), ".")[0]
+  }
+
   s3_vpce_all_regional_dns_names = [
     for dns_name, dns_name_labels in local.s3_vpce_dns_name_labels :
-    dns_name if length(dns_name_labels) == 2
+    dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-") && length(dns_name_labels) == 2
   ]
 
   s3_vpce_zonal_dns_names = [
     for dns_name, dns_name_labels in local.s3_vpce_dns_name_labels :
-    dns_name if length(dns_name_labels) > 2
+    dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-") && length(dns_name_labels) > 2
   ]
 
   s3_vpce_regional_dns_names = [
@@ -378,18 +383,25 @@ locals {
     for dns_name in local.s3_vpce_dns_names : dns_name if startswith(dns_name, "*.")
   ]
 
+  s3_vpce_regional_wildcard_candidates = [
+    for dns_name in local.s3_vpce_regional_dns_names :
+    dns_name if startswith(dns_name, "*.")
+  ]
+
+  s3_vpce_zonal_wildcard_candidates = [
+    for dns_name in local.s3_vpce_zonal_dns_names :
+    dns_name if startswith(dns_name, "*.")
+  ]
+
+  s3_vpce_any_wildcard_candidates = [
+    for dns_name in local.s3_vpce_wildcard_dns_candidates :
+    dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-")
+  ]
+
   s3_vpce_preferred_wildcard_dns_name = (
-    length([
-      for dns_name in local.s3_vpce_regional_dns_names : dns_name if startswith(dns_name, "*.")
-      ]) > 0 ? [
-      for dns_name in local.s3_vpce_regional_dns_names : dns_name if startswith(dns_name, "*.")
-      ][0] : (
-      length([
-        for dns_name in local.s3_vpce_zonal_dns_names : dns_name if startswith(dns_name, "*.")
-        ]) > 0 ? [
-        for dns_name in local.s3_vpce_zonal_dns_names : dns_name if startswith(dns_name, "*.")
-        ][0] : (
-        length(local.s3_vpce_wildcard_dns_candidates) > 0 ? local.s3_vpce_wildcard_dns_candidates[0] : null
+    length(local.s3_vpce_regional_wildcard_candidates) > 0 ? local.s3_vpce_regional_wildcard_candidates[0] : (
+      length(local.s3_vpce_zonal_wildcard_candidates) > 0 ? local.s3_vpce_zonal_wildcard_candidates[0] : (
+        length(local.s3_vpce_any_wildcard_candidates) > 0 ? local.s3_vpce_any_wildcard_candidates[0] : null
       )
     )
   )
