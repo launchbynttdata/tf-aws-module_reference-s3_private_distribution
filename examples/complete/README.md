@@ -248,20 +248,20 @@ terraform destroy -var-file=test.tfvars
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.8.0 |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
+| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.8.0 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_lambda_sg"></a> [lambda\_sg](#module\_lambda\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
+| <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform.registry.launch.nttdata.com/module_primitive/vpc/aws | ~> 1.0 |
 | <a name="module_private_subnets"></a> [private\_subnets](#module\_private\_subnets) | terraform.registry.launch.nttdata.com/module_primitive/subnet/aws | ~> 1.0 |
-| <a name="module_s3_privatelink"></a> [s3\_privatelink](#module\_s3\_privatelink) | ../.. | n/a |
 | <a name="module_s3_vpce_sg"></a> [s3\_vpce\_sg](#module\_s3\_vpce\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
 | <a name="module_s3_vpce_sg_ingress"></a> [s3\_vpce\_sg\_ingress](#module\_s3\_vpce\_sg\_ingress) | terraform.registry.launch.nttdata.com/module_primitive/vpc_security_group_ingress_rule/aws | ~> 0.1.4 |
-| <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform.registry.launch.nttdata.com/module_primitive/vpc/aws | ~> 1.0 |
+| <a name="module_lambda_sg"></a> [lambda\_sg](#module\_lambda\_sg) | terraform.registry.launch.nttdata.com/module_primitive/security_group/aws | ~> 0.7 |
+| <a name="module_s3_privatelink"></a> [s3\_privatelink](#module\_s3\_privatelink) | ../.. | n/a |
 
 ## Resources
 
@@ -294,52 +294,52 @@ terraform destroy -var-file=test.tfvars
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#input\_artifact\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the artifact bucket. Null preserves the baseline AES256 path used by the network-only validation harness. | `string` | `null` | no |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for resource deployment. | `string` | `"us-east-2"` | no |
-| <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the bucket. | `bool` | `true` | no |
-| <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enable S3 access logging. | `bool` | `false` | no |
-| <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable cross-region replication. | `bool` | `false` | no |
-| <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 bucket. | `bool` | `false` | no |
-| <a name="input_lambda_runtime"></a> [lambda\_runtime](#input\_lambda\_runtime) | Lambda runtime for the validation function. | `string` | `"python3.12"` | no |
-| <a name="input_lifecycle_incomplete_multipart_upload_days"></a> [lifecycle\_incomplete\_multipart\_upload\_days](#input\_lifecycle\_incomplete\_multipart\_upload\_days) | Days to retain incomplete multipart uploads. | `number` | `7` | no |
-| <a name="input_lifecycle_noncurrent_version_expiration_days"></a> [lifecycle\_noncurrent\_version\_expiration\_days](#input\_lifecycle\_noncurrent\_version\_expiration\_days) | Days to retain noncurrent versions before expiration. | `number` | `30` | no |
-| <a name="input_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#input\_logging\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the module-managed logging bucket. Null preserves the module default AES256 path. | `string` | `null` | no |
-| <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Prefix for access logs. | `string` | `"logs/"` | no |
-| <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Target bucket for access logs. Mutually exclusive with use\_external\_logging\_target. | `string` | `null` | no |
-| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Explicit Terraform/CI principal ARNs allowed to bypass VPCE-only restrictions. | `list(string)` | `[]` | no |
-| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for resource names. | `string` | `"launch-s3probe"` | no |
-| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | ARNs of pipeline roles allowed to access the bucket. | `list(string)` | `[]` | no |
-| <a name="input_private_subnet_cidrs"></a> [private\_subnet\_cidrs](#input\_private\_subnet\_cidrs) | CIDR blocks for private subnets (one per AZ). | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24"<br/>]</pre> | no |
-| <a name="input_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#input\_replication\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the replication destination bucket. Null preserves the module default AES256 path. | `string` | `null` | no |
-| <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | Destination region for replication. | `string` | `null` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources. | `map(string)` | <pre>{<br/>  "Purpose": "S3-PrivateLink-Validation",<br/>  "Terraform": "true"<br/>}</pre> | no |
-| <a name="input_use_external_logging_target"></a> [use\_external\_logging\_target](#input\_use\_external\_logging\_target) | When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name\_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. | `bool` | `false` | no |
-| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC. | `string` | `"10.0.0.0/16"` | no |
 | <a name="input_vpce_auto_accept"></a> [vpce\_auto\_accept](#input\_vpce\_auto\_accept) | Whether to auto-accept the interface endpoint request. | `bool` | `false` | no |
-| <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS behavior for the interface endpoint. | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
-| <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default. | `string` | `null` | no |
 | <a name="input_vpce_private_dns_enabled"></a> [vpce\_private\_dns\_enabled](#input\_vpce\_private\_dns\_enabled) | Whether to enable private DNS for the S3 interface endpoint. | `bool` | `true` | no |
+| <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default. | `string` | `null` | no |
+| <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS behavior for the interface endpoint. | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
+| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for resource names. | `string` | `"launch-s3probe"` | no |
+| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC. | `string` | `"10.0.0.0/16"` | no |
+| <a name="input_private_subnet_cidrs"></a> [private\_subnet\_cidrs](#input\_private\_subnet\_cidrs) | CIDR blocks for private subnets (one per AZ). | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24"<br/>]</pre> | no |
+| <a name="input_lambda_runtime"></a> [lambda\_runtime](#input\_lambda\_runtime) | Lambda runtime for the validation function. | `string` | `"python3.12"` | no |
+| <a name="input_management_principal_arns"></a> [management\_principal\_arns](#input\_management\_principal\_arns) | Explicit Terraform/CI principal ARNs allowed to bypass VPCE-only restrictions. | `list(string)` | `[]` | no |
+| <a name="input_pipeline_role_arns"></a> [pipeline\_role\_arns](#input\_pipeline\_role\_arns) | ARNs of pipeline roles allowed to access the bucket. | `list(string)` | `[]` | no |
+| <a name="input_enable_versioning"></a> [enable\_versioning](#input\_enable\_versioning) | Enable versioning on the S3 bucket. | `bool` | `false` | no |
+| <a name="input_enable_lifecycle"></a> [enable\_lifecycle](#input\_enable\_lifecycle) | Enable lifecycle rules on the bucket. | `bool` | `true` | no |
+| <a name="input_lifecycle_noncurrent_version_expiration_days"></a> [lifecycle\_noncurrent\_version\_expiration\_days](#input\_lifecycle\_noncurrent\_version\_expiration\_days) | Days to retain noncurrent versions before expiration. | `number` | `30` | no |
+| <a name="input_lifecycle_incomplete_multipart_upload_days"></a> [lifecycle\_incomplete\_multipart\_upload\_days](#input\_lifecycle\_incomplete\_multipart\_upload\_days) | Days to retain incomplete multipart uploads. | `number` | `7` | no |
+| <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enable S3 access logging. | `bool` | `false` | no |
+| <a name="input_logging_target_bucket"></a> [logging\_target\_bucket](#input\_logging\_target\_bucket) | Target bucket for access logs. Mutually exclusive with use\_external\_logging\_target. | `string` | `null` | no |
+| <a name="input_use_external_logging_target"></a> [use\_external\_logging\_target](#input\_use\_external\_logging\_target) | When true, routes S3 access logs to the self-managed external logging target bucket created by this example (named <name\_prefix>-ext-log) instead of the auto-created logging bucket inside the root module. | `bool` | `false` | no |
+| <a name="input_logging_prefix"></a> [logging\_prefix](#input\_logging\_prefix) | Prefix for access logs. | `string` | `"logs/"` | no |
+| <a name="input_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#input\_artifact\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the artifact bucket. Null preserves the baseline AES256 path used by the network-only validation harness. | `string` | `null` | no |
+| <a name="input_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#input\_logging\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the module-managed logging bucket. Null preserves the module default AES256 path. | `string` | `null` | no |
+| <a name="input_enable_replication"></a> [enable\_replication](#input\_enable\_replication) | Enable cross-region replication. | `bool` | `false` | no |
+| <a name="input_replication_destination_region"></a> [replication\_destination\_region](#input\_replication\_destination\_region) | Destination region for replication. | `string` | `null` | no |
+| <a name="input_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#input\_replication\_bucket\_kms\_key\_arn) | Optional customer-managed KMS key ARN for the replication destination bucket. Null preserves the module default AES256 path. | `string` | `null` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources. | `map(string)` | <pre>{<br/>  "Purpose": "S3-PrivateLink-Validation",<br/>  "Terraform": "true"<br/>}</pre> | no |
 
 ## Outputs
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#output\_artifact\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the artifact bucket. Empty string means the module is using its AES256 default path. |
-| <a name="output_artifact_bucket_sse_algorithm"></a> [artifact\_bucket\_sse\_algorithm](#output\_artifact\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the artifact bucket. |
-| <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region |
-| <a name="output_disallowed_bucket_name"></a> [disallowed\_bucket\_name](#output\_disallowed\_bucket\_name) | Name of the disallowed bucket (used for negative validation) |
-| <a name="output_external_logging_target_bucket_name"></a> [external\_logging\_target\_bucket\_name](#output\_external\_logging\_target\_bucket\_name) | Name of the self-managed external logging target bucket created by this example. Referenced when use\_external\_logging\_target = true. |
 | <a name="output_lambda_function_name"></a> [lambda\_function\_name](#output\_lambda\_function\_name) | Name of the validation Lambda function |
-| <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Empty string means the module is using its AES256 default or the logging target is external. |
-| <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging target bucket (auto-created or externally supplied). Empty string when logging is disabled. |
-| <a name="output_logging_bucket_sse_algorithm"></a> [logging\_bucket\_sse\_algorithm](#output\_logging\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the module-managed logging bucket. Empty string means logging is disabled or the target bucket is external to the module. |
-| <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the replication destination bucket. Empty string when replication is disabled. |
-| <a name="output_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#output\_replication\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the replication destination bucket. Empty string means the module is using its AES256 default or replication is disabled. |
-| <a name="output_replication_bucket_name"></a> [replication\_bucket\_name](#output\_replication\_bucket\_name) | Name of the replication destination bucket. Empty string when replication is disabled. |
-| <a name="output_replication_bucket_sse_algorithm"></a> [replication\_bucket\_sse\_algorithm](#output\_replication\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the replication destination bucket. Empty string when replication is disabled. |
-| <a name="output_s3_bucket_arn"></a> [s3\_bucket\_arn](#output\_s3\_bucket\_arn) | ARN of the S3 artifact bucket |
 | <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name of the S3 artifact bucket |
+| <a name="output_s3_bucket_arn"></a> [s3\_bucket\_arn](#output\_s3\_bucket\_arn) | ARN of the S3 artifact bucket |
+| <a name="output_artifact_bucket_sse_algorithm"></a> [artifact\_bucket\_sse\_algorithm](#output\_artifact\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the artifact bucket. |
+| <a name="output_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#output\_artifact\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the artifact bucket. Empty string means the module is using its AES256 default path. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Bucket-style hostname for the S3 interface endpoint |
+| <a name="output_disallowed_bucket_name"></a> [disallowed\_bucket\_name](#output\_disallowed\_bucket\_name) | Name of the disallowed bucket (used for negative validation) |
+| <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID |
+| <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging target bucket (auto-created or externally supplied). Empty string when logging is disabled. |
+| <a name="output_logging_bucket_sse_algorithm"></a> [logging\_bucket\_sse\_algorithm](#output\_logging\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the module-managed logging bucket. Empty string means logging is disabled or the target bucket is external to the module. |
+| <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Empty string means the module is using its AES256 default or the logging target is external. |
+| <a name="output_replication_bucket_name"></a> [replication\_bucket\_name](#output\_replication\_bucket\_name) | Name of the replication destination bucket. Empty string when replication is disabled. |
+| <a name="output_replication_bucket_arn"></a> [replication\_bucket\_arn](#output\_replication\_bucket\_arn) | ARN of the replication destination bucket. Empty string when replication is disabled. |
+| <a name="output_replication_bucket_sse_algorithm"></a> [replication\_bucket\_sse\_algorithm](#output\_replication\_bucket\_sse\_algorithm) | Effective default server-side encryption algorithm for the replication destination bucket. Empty string when replication is disabled. |
+| <a name="output_replication_bucket_kms_key_arn"></a> [replication\_bucket\_kms\_key\_arn](#output\_replication\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the replication destination bucket. Empty string means the module is using its AES256 default or replication is disabled. |
+| <a name="output_external_logging_target_bucket_name"></a> [external\_logging\_target\_bucket\_name](#output\_external\_logging\_target\_bucket\_name) | Name of the self-managed external logging target bucket created by this example. Referenced when use\_external\_logging\_target = true. |
 <!-- END_TF_DOCS -->
