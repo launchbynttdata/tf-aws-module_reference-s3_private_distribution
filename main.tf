@@ -429,19 +429,19 @@ locals {
   # relying on label-count heuristics or alphabetic ordering.
   s3_vpce_shortest_wildcard_len = (
     length(local.s3_vpce_any_wildcard_candidates) > 0 ?
-      min([for n in local.s3_vpce_any_wildcard_candidates : length(n)]...) : 0
+    min([for n in local.s3_vpce_any_wildcard_candidates : length(n)]...) : 0
   )
 
   # Prefer the real regional wildcard (shortest) over zonal or synthetic fallback.
   # Real names resolve via Route53 private zone; the synthetic fallback does not.
   s3_vpce_bucket_host = (
     length(local.s3_vpce_any_wildcard_candidates) > 0 ?
-      replace(
-        [for n in local.s3_vpce_any_wildcard_candidates :
-         n if length(n) == local.s3_vpce_shortest_wildcard_len][0],
-        "*.", "bucket."
-      ) :
-      local.s3_vpce_bucket_host_fallback
+    replace(
+      [for n in local.s3_vpce_any_wildcard_candidates :
+      n if length(n) == local.s3_vpce_shortest_wildcard_len][0],
+      "*.", "bucket."
+    ) :
+    local.s3_vpce_bucket_host_fallback
   )
 
   s3_vpce_validation_hosts = distinct(compact(concat(
