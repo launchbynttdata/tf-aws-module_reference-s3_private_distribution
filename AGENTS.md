@@ -25,8 +25,10 @@ When guidance conflicts, follow explicit user instructions first, then document 
 
 ## Blocking Review Checklist
 
-- [ ] No Terraform resource blocks named `this` in new/modified code unless explicitly required by an upstream module.
-- [ ] Post-deploy tests assert specific expected values (not only non-empty values).
+- [ ] No Terraform resource blocks named `this` in new/modified code unless explicitly required by an upstream module (primitive convention; reference modules may compose resources with descriptive labels).
+- [ ] Post-deploy tests assert specific expected values (not only non-empty values). List outputs with unknown cardinality (e.g. DNS name lists) may use NotEmpty if the content is structurally validated separately.
 - [ ] Functional and readonly test paths are distinct and intentionally different.
 - [ ] README testing section matches actual Makefile/test behavior.
 - [ ] `make lint` and `make test` were executed, or limitations are explicitly documented.
+- [ ] VPCE DNS classification: data source refresh (`data.aws_vpc_endpoint.s3_vpce_refreshed`) and shortest-first-label algorithm in `locals` must not be replaced with synthetic fallbacks or label-count heuristics.
+- [ ] `s3_vpce_bucket_host` output returns `null` (not a synthetic string) when no real VPCE wildcard DNS entries are available at apply time. Consumers must treat null as a deployment error signal.

@@ -108,7 +108,7 @@ Region defaults used by the test profile are `aws_region = us-east-2` and `repli
 
 **Expected duration**: ~35-45 minutes total. The test harness runs two full `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`). VPC interface endpoint ENI provisioning is the largest single contributor (~5-8 min); versioned S3 bucket destruction accounts for most of teardown time.
 
-**Current validation status (2026-07-09)**: baseline `terraform apply`/`destroy`, `make test`, `make lint`, focused functional rerun (`go test ./tests/post_deploy_functional -run TestS3BucketCollectionFunctional`), and readonly verification (`go test ./tests/post_deploy_functional_readonly -run TestS3BucketCollectionReadonly`) were run successfully in this PR workflow.
+**Current validation status**: baseline `terraform apply`/`destroy`, `make test`, `make lint`, focused functional rerun (`go test ./tests/post_deploy_functional -run TestS3BucketCollectionFunctional`), and readonly verification (`go test ./tests/post_deploy_functional_readonly -run TestS3BucketCollectionReadonly`) were run successfully in this PR workflow. GitHub Actions pipeline also passed (full apply/idempotency/destroy cycle).
 
 ### Deploy-Then-Readonly Workflow
 

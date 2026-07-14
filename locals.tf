@@ -36,7 +36,10 @@ locals {
   replication_region = var.replication_destination_region != null ? var.replication_destination_region : var.aws_region
 
   logging_bucket_name_computed = lower(replace("${local.base_name}-logs", "_", "-"))
-  logging_bucket_arn_computed  = "arn:aws:s3:::${local.logging_bucket_name_computed}"
+  # Note: S3 bucket ARNs use the same format across all AWS partitions (aws, aws-us-gov, aws-cn).
+  # The arn:aws:s3::: prefix is intentionally used here; S3 global ARNs do not include a region
+  # or account segment and the partition segment does not affect S3 bucket ARN resolution.
+  logging_bucket_arn_computed = "arn:aws:s3:::${local.logging_bucket_name_computed}"
 
   logging_bucket_policy_json = jsonencode({
     Version = "2012-10-17"
@@ -72,7 +75,7 @@ locals {
   })
 
   replication_bucket_name_computed = lower(replace("${local.base_name}-replica-${local.replication_region}", "_", "-"))
-  replication_bucket_arn_computed  = "arn:aws:s3:::${local.replication_bucket_name_computed}"
+  replication_bucket_arn_computed  = "arn:aws:s3:::${local.replication_bucket_name_computed}" # see logging_bucket_arn_computed for partition note
 
   replication_bucket_policy_json = jsonencode({
     Version = "2012-10-17"
