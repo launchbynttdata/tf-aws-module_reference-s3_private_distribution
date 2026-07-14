@@ -40,7 +40,7 @@ locals {
   # S3 global ARNs omit the region and account segments, but the partition segment
   # differs across AWS partitions: GovCloud uses arn:aws-us-gov:s3::: and China uses
   # arn:aws-cn:s3:::. This module targets commercial AWS only. To support non-commercial
-  # partitions, replace the hardcoded prefix with data.aws_partition.current.partition.
+  # partitions, replace with: "arn:${data.aws_partition.current.partition}:s3:::${local.logging_bucket_name_computed}"
   logging_bucket_arn_computed = "arn:aws:s3:::${local.logging_bucket_name_computed}"
 
   logging_bucket_policy_json = jsonencode({
