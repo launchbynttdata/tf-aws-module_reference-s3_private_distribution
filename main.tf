@@ -123,27 +123,20 @@ module "s3_interface_vpce" {
   tags = merge(local.tags, { Name = "${local.base_name}-s3-if-vpce" })
 }
 
-# Gate on VPCE creation being complete before reading DNS entries.
-# AWS does not populate dns_entry immediately; allow propagation time.
-resource "time_sleep" "vpce_dns_ready" {
-  depends_on      = [module.s3_interface_vpce]
-  create_duration = "5s"
-  triggers = {
-    vpce_id = module.s3_interface_vpce.id
-  }
-}
-
-# Read live DNS entries after propagation delay.
-# This ensures real VPCE wildcard DNS names are available for selection.
+# Read live DNS entries from the S3 interface endpoint.
+# This data source queries the AWS API to fetch current VPCE DNS entries, which should
+# be available immediately once the endpoint reaches 'available' state.
 data "aws_vpc_endpoint" "s3_vpce_refreshed" {
-  depends_on = [time_sleep.vpce_dns_ready]
+  depends_on = [module.s3_interface_vpce]
 
   id = module.s3_interface_vpce.id
 }
 
 locals {
-  # Use refreshed DNS entries from data source (read after sleep completes)
-  # instead of relying on module output which is evaluated during plan phase.
+  # Use refreshed DNS entries from data source at apply time instead of the
+  # module output (which is evaluated during plan phase). This ensures real
+  # VPCE wildcard DNS names are available for selection immediately after
+  # the endpoint reaches 'available' state.
   vpce_dns_entries_for_selection = data.aws_vpc_endpoint.s3_vpce_refreshed.dns_entry
 }
 
@@ -420,8 +413,6 @@ locals {
     dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-")
   ]
 
-  s3_vpce_bucket_host_fallback = "bucket.${module.s3_interface_vpce.id}.s3.${var.aws_region}.vpce.amazonaws.com"
-
   # Sort candidates to ensure deterministic selection (not just by length, but
   # also by name within the same length). The regional wildcard (no AZ suffix)
   # is structurally the shortest, so it will always be selected first.
@@ -435,9 +426,10 @@ locals {
     min([for n in local.s3_vpce_sorted_wildcard_candidates : length(n)]...) : 0
   )
 
-  # Prefer the real regional wildcard (shortest) over zonal or synthetic fallback.
-  # Real names resolve via Route53 private zone; the synthetic fallback does not.
-  # Selection is deterministic: sorted candidates, filtered by min length, then [0].
+  # Select the regional wildcard (shortest candidate, no AZ suffix) and convert
+  # to bucket-style hostname. Returns null if no real VPCE wildcard names are
+  # available — this indicates a DNS propagation failure or endpoint misconfiguration
+  # and should be treated as a deployment error by downstream consumers.
   s3_vpce_bucket_host = (
     length(local.s3_vpce_sorted_wildcard_candidates) > 0 ?
     replace(
@@ -445,7 +437,7 @@ locals {
       n if length(n) == local.s3_vpce_shortest_wildcard_len][0],
       "*.", "bucket."
     ) :
-    local.s3_vpce_bucket_host_fallback
+    null
   )
 
   s3_vpce_validation_hosts = distinct(compact(concat(
@@ -456,7 +448,6 @@ locals {
     [
       for dns_name in local.s3_vpce_zonal_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
     ],
-    [local.s3_vpce_bucket_host_fallback],
     [
       for dns_name in local.s3_vpce_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
     ]

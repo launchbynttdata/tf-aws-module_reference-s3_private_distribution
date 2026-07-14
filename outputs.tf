@@ -62,7 +62,7 @@ output "s3_vpce_bucket_host" {
 }
 
 output "s3_vpce_validation_hosts" {
-  description = "Ordered DNS host candidates for downstream validation. Starts with the preferred bucket-style host and includes deterministic fallbacks."
+  description = "Ordered DNS host candidates for downstream validation. Starts with the preferred regional bucket-style host, followed by zonal and all other endpoint-derived names."
   value       = local.s3_vpce_validation_hosts
 }
 

@@ -80,12 +80,12 @@ The `s3_vpce_bucket_host` output selects a single DNS name for the Lambda valida
 2. Among VPCE-specific names, selects only wildcards (needed for bucket-style access).
 3. Sorts candidates deterministically (by name, stable).
 4. Selects the shortest entry (regional names are shorter than zonal, since they lack AZ suffixes).
-5. Falls back to a synthetic name if no real names exist (rare; indicates DNS propagation delay or endpoint misconfiguration).
+5. Returns `null` if no real VPCE wildcard names are available — this indicates DNS propagation failure or endpoint misconfiguration and should be treated as a deployment error.
 
 This approach ensures:
 - **Deterministic output**: Same infrastructure state always produces the same hostname (no flapping).
 - **Regional preference**: The algorithm naturally prefers regional over zonal (shorter string).
-- **Real hostname selection**: Uses a name from AWS Route53 private zone, not a constructed synthetic name that won't resolve.
+- **Real hostname selection**: Uses a name from the AWS Route53 private zone; `null` output is an explicit signal that selection failed rather than a silently non-resolving constructed name.
 
 ### Recommended client access pattern
 
@@ -103,6 +103,10 @@ This approach ensures:
 - Downstream consumers should use `s3_vpce_validation_hosts` as the ordered list of DNS candidates for health checks and download validation.
 - Avoid manually constructing `vpce-...` hostnames from endpoint IDs.
 - Keep existing compatibility outputs (`s3_vpce_dns_entries`, `s3_vpce_bucket_host`) for legacy workflows, but prefer the explicit regional/zonal and validation-host outputs for new automation.
+
+### Logging bucket post-destroy test guard
+
+The Terratest suite determines whether to assert the logging bucket is deleted after `terraform destroy` using this condition: `loggingBucketName != "" && loggingBucketSSEAlgorithm != ""`. The presence of a non-empty `logging_bucket_sse_algorithm` output is used as a proxy for "module-managed bucket" — an external bucket passed via `logging_target_bucket` does not produce this output, so the test skips the deletion assertion for it. If you point `logging_target_bucket` at an external bucket that was encrypted before use, ensure `logging_bucket_sse_algorithm` returns an empty string to avoid a false post-destroy failure.
 
 ---
 
@@ -371,7 +375,6 @@ module "s3_privatelink" {
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.10 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.100, < 7.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.6 |
-| <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.14 |
 
 ## Providers
 
@@ -379,7 +382,6 @@ module "s3_privatelink" {
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
-| <a name="provider_time"></a> [time](#provider\_time) | 0.14.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
@@ -403,7 +405,6 @@ module "s3_privatelink" {
 | [aws_s3_bucket_replication_configuration.artifacts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_replication_configuration) | resource |
 | [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 | [terraform_data.deployer_lockout_guard](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
-| [time_sleep.vpce_dns_ready](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_vpc_endpoint.s3_vpce_refreshed](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc_endpoint) | data source |
 
@@ -452,7 +453,7 @@ module "s3_privatelink" {
 | <a name="output_s3_vpce_regional_dns_names"></a> [s3\_vpce\_regional\_dns\_names](#output\_s3\_vpce\_regional\_dns\_names) | Regional DNS names discovered from the S3 interface endpoint DNS entries. |
 | <a name="output_s3_vpce_zonal_dns_names"></a> [s3\_vpce\_zonal\_dns\_names](#output\_s3\_vpce\_zonal\_dns\_names) | Zonal DNS names discovered from the S3 interface endpoint DNS entries. |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Resolved bucket-style hostname for the S3 interface endpoint (e.g. bucket.vpce-xxx.s3.us-west-1.vpce.amazonaws.com). Use as the base URL for private artifact downloads. |
-| <a name="output_s3_vpce_validation_hosts"></a> [s3\_vpce\_validation\_hosts](#output\_s3\_vpce\_validation\_hosts) | Ordered DNS host candidates for downstream validation. Starts with the preferred bucket-style host and includes deterministic fallbacks. |
+| <a name="output_s3_vpce_validation_hosts"></a> [s3\_vpce\_validation\_hosts](#output\_s3\_vpce\_validation\_hosts) | Ordered DNS host candidates for downstream validation. Starts with the preferred regional bucket-style host, followed by zonal and all other endpoint-derived names. |
 | <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging bucket. Returns the auto-created bucket name, the provided external target bucket name, or null when logging is disabled. |
 | <a name="output_logging_bucket_arn"></a> [logging\_bucket\_arn](#output\_logging\_bucket\_arn) | ARN of the S3 logging bucket (if created). |
 | <a name="output_logging_bucket_kms_key_arn"></a> [logging\_bucket\_kms\_key\_arn](#output\_logging\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the module-managed logging bucket. Null means the module is using its AES256 default or the logging bucket is external/unmanaged. |

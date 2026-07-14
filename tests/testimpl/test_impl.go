@@ -90,11 +90,41 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	replicationBucketSSEAlgorithm := terraform.OutputContext(t, context.Background(), tfOptions, "replication_bucket_sse_algorithm")
 	replicationBucketKMSKeyArn := terraform.OutputContext(t, context.Background(), tfOptions, "replication_bucket_kms_key_arn")
 
+	regionalDNSNames := terraform.OutputListContext(t, context.Background(), tfOptions, "s3_vpce_regional_dns_names")
+	zonalDNSNames := terraform.OutputListContext(t, context.Background(), tfOptions, "s3_vpce_zonal_dns_names")
+	bucketHost := terraform.OutputContext(t, context.Background(), tfOptions, "s3_vpce_bucket_host")
+
 	assert.Equal(t, expectedPrimaryRegion, region, "aws_region should match the test profile region")
 	assert.Regexp(t, `^vpce-[0-9a-f]{17}$`, endpointID, "s3_interface_vpce_id should be a valid VPC endpoint ID format")
 	assert.True(t, strings.HasPrefix(bucketName, "msix-s3-bucket-complete-") && strings.HasSuffix(bucketName, "-artifacts"), "s3_bucket_name should use the complete example naming pattern")
 	assert.True(t, strings.HasPrefix(disallowedBucketName, "msix-s3-bucket-complete-disallowed-"), "disallowed_bucket_name should use the complete example naming pattern")
 	assert.Regexp(t, `^msix-s3-bucket-complete-s3-probe-[0-9a-f]{4}$`, functionName, "lambda_function_name should use the complete example naming pattern")
+
+	// Verify VPCE DNS classification outputs are populated and correct.
+	// These are read-only assertions that catch classification bugs without a
+	// full apply+destroy cycle, making them valid for post-deploy readonly runs.
+	assert.NotEmpty(t, regionalDNSNames, "s3_vpce_regional_dns_names should contain at least one entry")
+	assert.NotEmpty(t, zonalDNSNames, "s3_vpce_zonal_dns_names should contain at least one entry")
+
+	// Regional and zonal lists must be mutually exclusive.
+	for _, n := range regionalDNSNames {
+		assert.NotContains(t, zonalDNSNames, n, "DNS name %q appears in both regional and zonal lists", n)
+	}
+
+	// Regional names must not have an AZ suffix — they end at the uniquifier segment.
+	// Zonal names extend the regional first label with -{az} (e.g. -us-east-2a).
+	for _, n := range regionalDNSNames {
+		assert.NotRegexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, strings.Split(n, ".")[0],
+			"regional DNS name %q should not contain an AZ suffix in its first label", n)
+	}
+	for _, n := range zonalDNSNames {
+		assert.Regexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, strings.Split(n, ".")[0],
+			"zonal DNS name %q should contain an AZ suffix in its first label", n)
+	}
+
+	// s3_vpce_bucket_host must be derived from the regional wildcard (no AZ suffix).
+	assert.Regexp(t, `^bucket\.vpce-[a-z0-9]+-[a-z0-9]+\.s3\.[a-z0-9-]+\.vpce\.amazonaws\.com$`, bucketHost,
+		"s3_vpce_bucket_host should be a regional (no AZ suffix) bucket-style hostname")
 
 	awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
 	require.NoError(t, err, "failed to load AWS SDK config")
