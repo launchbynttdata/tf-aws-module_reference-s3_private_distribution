@@ -414,20 +414,26 @@ locals {
 
   s3_vpce_bucket_host_fallback = "bucket.${module.s3_interface_vpce.id}.s3.${var.aws_region}.vpce.amazonaws.com"
 
-  # The regional wildcard has no AZ suffix and is structurally always the
-  # shortest entry. min(length(...)) selects it deterministically without
-  # relying on label-count heuristics or alphabetic ordering.
-  s3_vpce_shortest_wildcard_len = (
+  # Sort candidates to ensure deterministic selection (not just by length, but
+  # also by name within the same length). The regional wildcard (no AZ suffix)
+  # is structurally the shortest, so it will always be selected first.
+  s3_vpce_sorted_wildcard_candidates = (
     length(local.s3_vpce_any_wildcard_candidates) > 0 ?
-    min([for n in local.s3_vpce_any_wildcard_candidates : length(n)]...) : 0
+    sort(local.s3_vpce_any_wildcard_candidates) : []
+  )
+
+  s3_vpce_shortest_wildcard_len = (
+    length(local.s3_vpce_sorted_wildcard_candidates) > 0 ?
+    min([for n in local.s3_vpce_sorted_wildcard_candidates : length(n)]...) : 0
   )
 
   # Prefer the real regional wildcard (shortest) over zonal or synthetic fallback.
   # Real names resolve via Route53 private zone; the synthetic fallback does not.
+  # Selection is deterministic: sorted candidates, filtered by min length, then [0].
   s3_vpce_bucket_host = (
-    length(local.s3_vpce_any_wildcard_candidates) > 0 ?
+    length(local.s3_vpce_sorted_wildcard_candidates) > 0 ?
     replace(
-      [for n in local.s3_vpce_any_wildcard_candidates :
+      [for n in local.s3_vpce_sorted_wildcard_candidates :
       n if length(n) == local.s3_vpce_shortest_wildcard_len][0],
       "*.", "bucket."
     ) :

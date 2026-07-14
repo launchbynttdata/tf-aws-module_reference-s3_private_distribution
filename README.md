@@ -64,6 +64,29 @@ If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` 
 - When enabled, VPC resolver behavior can map supported S3 hostnames to endpoint ENIs.
 - DNS resolution alone is not sufficient for access. Effective access still depends on network path (subnets, route tables, security groups) and endpoint/bucket policy conditions.
 
+### VPCE DNS name classification
+
+AWS S3 interface endpoints publish multiple DNS names:
+- **Regional wildcard**: `*.vpce-{id}-{uniquifier}.s3.{region}.vpce.amazonaws.com` — no AZ suffix, resolves to all endpoint ENIs
+- **Zonal wildcards**: `*.vpce-{id}-{uniquifier}-{az}.s3.{region}.vpce.amazonaws.com` — one per AZ, resolves to that AZ's ENI only
+
+The module classifies these automatically via label-count heuristics (regional = 2 labels, zonal = 3+ labels after splitting on `-`). Classification is made mutually exclusive: if a name could match both patterns, it is categorized as zonal, ensuring `s3_vpce_regional_dns_names` contains only true regional entries.
+
+### Bucket host selection algorithm
+
+The `s3_vpce_bucket_host` output selects a single DNS name for the Lambda validation probe and downstream artifact downloads:
+
+1. Filters all DNS names to those matching `vpce-*` (excludes public S3 names).
+2. Among VPCE-specific names, selects only wildcards (needed for bucket-style access).
+3. Sorts candidates deterministically (by name, stable).
+4. Selects the shortest entry (regional names are shorter than zonal, since they lack AZ suffixes).
+5. Falls back to a synthetic name if no real names exist (rare; indicates DNS propagation delay or endpoint misconfiguration).
+
+This approach ensures:
+- **Deterministic output**: Same infrastructure state always produces the same hostname (no flapping).
+- **Regional preference**: The algorithm naturally prefers regional over zonal (shorter string).
+- **Real hostname selection**: Uses a name from AWS Route53 private zone, not a constructed synthetic name that won't resolve.
+
 ### Recommended client access pattern
 
 - Use name-based access over endpoint DNS hostnames.
