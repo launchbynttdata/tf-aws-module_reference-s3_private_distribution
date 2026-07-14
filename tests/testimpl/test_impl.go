@@ -114,11 +114,13 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	// Regional names must not have an AZ suffix — they end at the uniquifier segment.
 	// Zonal names extend the regional first label with -{az} (e.g. -us-east-2a).
 	for _, n := range regionalDNSNames {
-		assert.NotRegexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, strings.Split(n, ".")[0],
+		firstLabel := strings.Split(strings.TrimPrefix(n, "*."), ".")[0]
+		assert.NotRegexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, firstLabel,
 			"regional DNS name %q should not contain an AZ suffix in its first label", n)
 	}
 	for _, n := range zonalDNSNames {
-		assert.Regexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, strings.Split(n, ".")[0],
+		firstLabel := strings.Split(strings.TrimPrefix(n, "*."), ".")[0]
+		assert.Regexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, firstLabel,
 			"zonal DNS name %q should contain an AZ suffix in its first label", n)
 	}
 
