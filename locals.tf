@@ -36,9 +36,11 @@ locals {
   replication_region = var.replication_destination_region != null ? var.replication_destination_region : var.aws_region
 
   logging_bucket_name_computed = lower(replace("${local.base_name}-logs", "_", "-"))
-  # Note: S3 bucket ARNs use the same format across all AWS partitions (aws, aws-us-gov, aws-cn).
-  # The arn:aws:s3::: prefix is intentionally used here; S3 global ARNs do not include a region
-  # or account segment and the partition segment does not affect S3 bucket ARN resolution.
+  # Note: This ARN hardcodes the commercial AWS partition prefix (arn:aws:s3:::).
+  # S3 global ARNs omit the region and account segments, but the partition segment
+  # differs across AWS partitions: GovCloud uses arn:aws-us-gov:s3::: and China uses
+  # arn:aws-cn:s3:::. This module targets commercial AWS only. To support non-commercial
+  # partitions, replace the hardcoded prefix with data.aws_partition.current.partition.
   logging_bucket_arn_computed = "arn:aws:s3:::${local.logging_bucket_name_computed}"
 
   logging_bucket_policy_json = jsonencode({
