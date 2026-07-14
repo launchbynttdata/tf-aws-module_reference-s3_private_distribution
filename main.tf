@@ -378,29 +378,37 @@ locals {
     for entry in local.vpce_dns_entries_for_selection : entry.dns_name
   ])
 
-  s3_vpce_dns_name_labels = {
-    for dns_name in local.s3_vpce_dns_names :
-    dns_name => split("-", split(".", replace(dns_name, "*.", ""))[0])
-  }
-
   s3_vpce_dns_first_labels = {
     for dns_name in local.s3_vpce_dns_names :
     dns_name => split(".", replace(dns_name, "*.", ""))[0]
   }
 
-  s3_vpce_all_regional_dns_names = [
-    for dns_name, dns_name_labels in local.s3_vpce_dns_name_labels :
-    dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-") && length(dns_name_labels) == 2
-  ]
+  # Map of DNS name -> first label, restricted to VPCE-prefixed entries.
+  # The regional name's first label is vpce-{id}-{uniquifier}.
+  # The zonal name's first label extends it: vpce-{id}-{uniquifier}-{az}.
+  s3_vpce_vpce_first_labels = {
+    for n in local.s3_vpce_dns_names : n => local.s3_vpce_dns_first_labels[n]
+    if startswith(local.s3_vpce_dns_first_labels[n], "vpce-")
+  }
 
-  s3_vpce_zonal_dns_names = [
-    for dns_name, dns_name_labels in local.s3_vpce_dns_name_labels :
-    dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-") && length(dns_name_labels) > 2
-  ]
+  # The shortest first label is the regional one (no AZ suffix appended).
+  # sort()[0] gives deterministic selection independent of API response order.
+  # This approach works for standard regions, GovCloud, and Local Zones alike.
+  s3_vpce_regional_first_label = (
+    length(local.s3_vpce_vpce_first_labels) > 0 ?
+    sort([for _, l in local.s3_vpce_vpce_first_labels : l])[0] : null
+  )
 
+  # Regional: first label exactly matches the shortest VPCE label (no AZ suffix).
   s3_vpce_regional_dns_names = [
-    for dns_name in local.s3_vpce_all_regional_dns_names :
-    dns_name if !contains(local.s3_vpce_zonal_dns_names, dns_name)
+    for n, l in local.s3_vpce_vpce_first_labels : n if l == local.s3_vpce_regional_first_label
+  ]
+
+  # Zonal: first label is the regional label with an AZ suffix appended ("-{az}").
+  # Covers standard AZs (us-east-1a), GovCloud (us-gov-west-1a), Local Zones (us-east-1-bos-1a).
+  s3_vpce_zonal_dns_names = [
+    for n, l in local.s3_vpce_vpce_first_labels : n
+    if l != local.s3_vpce_regional_first_label && startswith(l, "${local.s3_vpce_regional_first_label}-")
   ]
 
   s3_vpce_wildcard_dns_candidates = [

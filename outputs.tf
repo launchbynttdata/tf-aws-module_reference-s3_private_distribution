@@ -38,7 +38,7 @@ output "s3_interface_vpce_id" {
 
 output "s3_vpce_dns_entries" {
   description = "DNS entries for the S3 interface endpoint. Each entry contains dns_name and hosted_zone_id."
-  value       = module.s3_interface_vpce.dns_entry
+  value       = data.aws_vpc_endpoint.s3_vpce_refreshed.dns_entry
 }
 
 output "s3_vpce_private_dns_enabled" {

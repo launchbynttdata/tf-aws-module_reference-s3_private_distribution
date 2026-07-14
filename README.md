@@ -70,7 +70,7 @@ AWS S3 interface endpoints publish multiple DNS names:
 - **Regional wildcard**: `*.vpce-{id}-{uniquifier}.s3.{region}.vpce.amazonaws.com` — no AZ suffix, resolves to all endpoint ENIs
 - **Zonal wildcards**: `*.vpce-{id}-{uniquifier}-{az}.s3.{region}.vpce.amazonaws.com` — one per AZ, resolves to that AZ's ENI only
 
-The module classifies these automatically via label-count heuristics (regional = 2 labels, zonal = 3+ labels after splitting on `-`). Classification is made mutually exclusive: if a name could match both patterns, it is categorized as zonal, ensuring `s3_vpce_regional_dns_names` contains only true regional entries.
+The module classifies these automatically by comparing the first DNS label (the `vpce-{id}-{uniquifier}` segment) across all entries. The **shortest** first label belongs to the regional entry; zonal entries extend it with an AZ suffix (`-{az}`). This structural comparison avoids hardcoded label-count assumptions and correctly handles standard regions, GovCloud (`us-gov-west-1a`), and Local Zones (`us-east-1-bos-1a`).
 
 ### Bucket host selection algorithm
 
