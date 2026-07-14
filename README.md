@@ -80,7 +80,7 @@ The `s3_vpce_bucket_host` output selects a single DNS name for the Lambda valida
 2. Among VPCE-specific names, selects only wildcards (needed for bucket-style access).
 3. Sorts candidates deterministically (by name, stable).
 4. Selects the shortest entry (regional names are shorter than zonal, since they lack AZ suffixes).
-5. Returns `null` if no real VPCE wildcard names are available — this indicates DNS propagation failure or endpoint misconfiguration and should be treated as a deployment error.
+5. Returns `null` if no real VPCE wildcard names are available - this indicates DNS propagation failure or endpoint misconfiguration and should be treated as a deployment error.
 
 This approach ensures:
 - **Deterministic output**: Same infrastructure state always produces the same hostname (no flapping).
