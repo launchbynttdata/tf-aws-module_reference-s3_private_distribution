@@ -111,17 +111,27 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 		assert.NotContains(t, zonalDNSNames, n, "DNS name %q appears in both regional and zonal lists", n)
 	}
 
-	// Regional names must not have an AZ suffix — they end at the uniquifier segment.
-	// Zonal names extend the regional first label with -{az} (e.g. -us-east-2a).
+	// Validate zonal/regional DNS structurally so this also works for Local Zones,
+	// GovCloud, and other AZ suffix forms beyond simple region-letter patterns.
+	regionalFirstLabels := make([]string, 0, len(regionalDNSNames))
 	for _, n := range regionalDNSNames {
 		firstLabel := strings.Split(strings.TrimPrefix(n, "*."), ".")[0]
-		assert.NotRegexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, firstLabel,
-			"regional DNS name %q should not contain an AZ suffix in its first label", n)
+		regionalFirstLabels = append(regionalFirstLabels, firstLabel)
+		assert.True(t, strings.HasPrefix(firstLabel, "vpce-"),
+			"regional DNS name %q should start with vpce- in first label", n)
 	}
+
 	for _, n := range zonalDNSNames {
 		firstLabel := strings.Split(strings.TrimPrefix(n, "*."), ".")[0]
-		assert.Regexp(t, `-[a-z]{2}-[a-z]+-[0-9]+[a-z]\b`, firstLabel,
-			"zonal DNS name %q should contain an AZ suffix in its first label", n)
+		matchesRegionalPrefix := false
+		for _, regionalLabel := range regionalFirstLabels {
+			if strings.HasPrefix(firstLabel, regionalLabel+"-") {
+				matchesRegionalPrefix = true
+				break
+			}
+		}
+		assert.True(t, matchesRegionalPrefix,
+			"zonal DNS name %q first label %q should extend one regional first label with a hyphenated suffix", n, firstLabel)
 	}
 
 	// s3_vpce_bucket_host must be derived from the regional wildcard (no AZ suffix).
