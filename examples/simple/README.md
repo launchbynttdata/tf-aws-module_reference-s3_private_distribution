@@ -54,4 +54,7 @@ S3 distribution reference module from the repository root.
 | <a name="output_s3_bucket_name"></a> [s3\_bucket\_name](#output\_s3\_bucket\_name) | Name of the S3 artifact bucket created by the reference module. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint. |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Bucket-style hostname for the interface endpoint. |
+| <a name="output_s3_vpce_regional_dns_names"></a> [s3\_vpce\_regional\_dns\_names](#output\_s3\_vpce\_regional\_dns\_names) | Regional DNS names discovered from the S3 interface endpoint DNS entries. |
+| <a name="output_s3_vpce_zonal_dns_names"></a> [s3\_vpce\_zonal\_dns\_names](#output\_s3\_vpce\_zonal\_dns\_names) | Zonal DNS names discovered from the S3 interface endpoint DNS entries. |
+| <a name="output_s3_vpce_validation_hosts"></a> [s3\_vpce\_validation\_hosts](#output\_s3\_vpce\_validation\_hosts) | Ordered DNS host candidates for downstream validation. Starts with the preferred regional bucket-style host, followed by zonal and all other endpoint-derived names. |
 <!-- END_TF_DOCS -->
