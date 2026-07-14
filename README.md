@@ -67,8 +67,8 @@ If `pipeline_role_arns` is provided, each role ARN receives a dedicated `Allow` 
 ### VPCE DNS name classification
 
 AWS S3 interface endpoints publish multiple DNS names:
-- **Regional wildcard**: `*.vpce-{id}-{uniquifier}.s3.{region}.vpce.amazonaws.com` — no AZ suffix, resolves to all endpoint ENIs
-- **Zonal wildcards**: `*.vpce-{id}-{uniquifier}-{az}.s3.{region}.vpce.amazonaws.com` — one per AZ, resolves to that AZ's ENI only
+- **Regional wildcard**: `*.vpce-{id}-{uniquifier}.s3.{region}.vpce.amazonaws.com` - no AZ suffix, resolves to all endpoint ENIs
+- **Zonal wildcards**: `*.vpce-{id}-{uniquifier}-{az}.s3.{region}.vpce.amazonaws.com` - one per AZ, resolves to that AZ's ENI only
 
 The module classifies these automatically by comparing the first DNS label (the `vpce-{id}-{uniquifier}` segment) across all entries. The **shortest** first label belongs to the regional entry; zonal entries extend it with an AZ suffix (`-{az}`). This structural comparison avoids hardcoded label-count assumptions and correctly handles standard regions, GovCloud (`us-gov-west-1a`), and Local Zones (`us-east-1-bos-1a`).
 
