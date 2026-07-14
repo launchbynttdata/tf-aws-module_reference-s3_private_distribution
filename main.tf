@@ -407,16 +407,6 @@ locals {
     for dns_name in local.s3_vpce_dns_names : dns_name if startswith(dns_name, "*.")
   ]
 
-  s3_vpce_regional_wildcard_candidates = [
-    for dns_name in local.s3_vpce_regional_dns_names :
-    dns_name if startswith(dns_name, "*.")
-  ]
-
-  s3_vpce_zonal_wildcard_candidates = [
-    for dns_name in local.s3_vpce_zonal_dns_names :
-    dns_name if startswith(dns_name, "*.")
-  ]
-
   s3_vpce_any_wildcard_candidates = [
     for dns_name in local.s3_vpce_wildcard_dns_candidates :
     dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-")
