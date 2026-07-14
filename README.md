@@ -106,7 +106,7 @@ This approach ensures:
 
 ### Logging bucket post-destroy test guard
 
-The Terratest suite determines whether to assert the logging bucket is deleted after `terraform destroy` using this condition: `loggingBucketName != "" && loggingBucketSSEAlgorithm != ""`. The presence of a non-empty `logging_bucket_sse_algorithm` output is used as a proxy for "module-managed bucket" — an external bucket passed via `logging_target_bucket` does not produce this output, so the test skips the deletion assertion for it. If you point `logging_target_bucket` at an external bucket that was encrypted before use, ensure `logging_bucket_sse_algorithm` returns an empty string to avoid a false post-destroy failure.
+The Terratest suite determines whether to assert the logging bucket is deleted after `terraform destroy` using this condition: `loggingBucketName != "" && loggingBucketSSEAlgorithm != ""`. The presence of a non-empty `logging_bucket_sse_algorithm` output is used as a proxy for "module-managed bucket" - an external bucket passed via `logging_target_bucket` does not produce this output, so the test skips the deletion assertion for it. If you point `logging_target_bucket` at an external bucket that was encrypted before use, ensure `logging_bucket_sse_algorithm` returns an empty string to avoid a false post-destroy failure.
 
 ---
 
