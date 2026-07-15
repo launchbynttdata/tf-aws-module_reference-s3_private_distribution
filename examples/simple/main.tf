@@ -121,8 +121,9 @@ module "s3_privatelink" {
   vpce_security_group_ids = [aws_security_group.vpce.id]
 
   # Required - region
-  aws_region  = var.aws_region
-  name_prefix = var.name_prefix
+  aws_region               = var.aws_region
+  name_prefix              = var.name_prefix
+  vpce_private_dns_enabled = var.vpce_private_dns_enabled
 
   management_principal_arns = local.effective_management_principal_arns
   pipeline_role_arns        = var.pipeline_role_arns

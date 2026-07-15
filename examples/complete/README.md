@@ -46,6 +46,7 @@ module "s3_privatelink" {
   aws_region           = var.aws_region
   name_prefix          = var.name_prefix
   vpce_auto_accept     = var.vpce_auto_accept
+  vpce_private_dns_enabled = var.vpce_private_dns_enabled
   vpce_ip_address_type = var.vpce_ip_address_type
   vpce_dns_options     = var.vpce_dns_options
 
@@ -87,6 +88,10 @@ caller normalization).
 make test AWS_REGION=us-east-2
 ```
 
+> **Common first failure**: If `vpce_dns_options.private_dns_only_for_inbound_resolver_endpoint = true`, AWS requires an S3 Gateway endpoint in the same VPC.
+> This complete example uses an interface endpoint-only topology, so baseline `test.tfvars` pins `private_dns_only_for_inbound_resolver_endpoint = false`.
+> If you change it to `true`, also add an S3 Gateway endpoint to the harness before running `make test`.
+
 > **Region precondition**: the example's `data.aws_availability_zones.available` block
 > includes a `lifecycle { precondition }` that aborts `terraform plan` if the active AWS
 > provider region does not match `var.aws_region` from the tfvars file. This guard
@@ -103,7 +108,7 @@ Region defaults used by the test profile are `aws_region = us-east-2` and `repli
 
 **Expected duration**: ~35-45 minutes total. The test harness runs two full `terraform apply` cycles to verify idempotency (`IS_TERRAFORM_IDEMPOTENT_APPLY = true`). VPC interface endpoint ENI provisioning is the largest single contributor (~5-8 min); versioned S3 bucket destruction accounts for most of teardown time.
 
-**Current validation status (2026-06-03)**: baseline `terraform apply`/`destroy`, `make test`, `make lint`, focused functional rerun (`go test ./tests/post_deploy_functional -run TestS3BucketCollectionFunctional`), and readonly verification (`go test ./tests/post_deploy_functional_readonly -run TestS3BucketCollectionReadonly`) were run successfully in this PR workflow.
+**Current validation status**: baseline `terraform apply`/`destroy`, `make test`, `make lint`, focused functional rerun (`go test ./tests/post_deploy_functional -run TestS3BucketCollectionFunctional`), and readonly verification (`go test ./tests/post_deploy_functional_readonly -run TestS3BucketCollectionReadonly`) were run successfully in this PR workflow. GitHub Actions pipeline also passed (full apply/idempotency/destroy cycle).
 
 ### Deploy-Then-Readonly Workflow
 
@@ -291,6 +296,7 @@ terraform destroy -var-file=test.tfvars
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for resource deployment. | `string` | `"us-east-2"` | no |
 | <a name="input_vpce_auto_accept"></a> [vpce\_auto\_accept](#input\_vpce\_auto\_accept) | Whether to auto-accept the interface endpoint request. | `bool` | `false` | no |
+| <a name="input_vpce_private_dns_enabled"></a> [vpce\_private\_dns\_enabled](#input\_vpce\_private\_dns\_enabled) | Whether to enable private DNS for the S3 interface endpoint. | `bool` | `true` | no |
 | <a name="input_vpce_ip_address_type"></a> [vpce\_ip\_address\_type](#input\_vpce\_ip\_address\_type) | IP address type for the interface endpoint (ipv4, dualstack, ipv6). Null uses service default. | `string` | `null` | no |
 | <a name="input_vpce_dns_options"></a> [vpce\_dns\_options](#input\_vpce\_dns\_options) | Optional DNS behavior for the interface endpoint. | <pre>object({<br/>    dns_record_ip_type                             = optional(string)<br/>    private_dns_only_for_inbound_resolver_endpoint = optional(bool)<br/>  })</pre> | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for resource names. | `string` | `"launch-s3probe"` | no |
@@ -325,6 +331,9 @@ terraform destroy -var-file=test.tfvars
 | <a name="output_artifact_bucket_kms_key_arn"></a> [artifact\_bucket\_kms\_key\_arn](#output\_artifact\_bucket\_kms\_key\_arn) | Configured customer-managed KMS key ARN for the artifact bucket. Empty string means the module is using its AES256 default path. |
 | <a name="output_s3_interface_vpce_id"></a> [s3\_interface\_vpce\_id](#output\_s3\_interface\_vpce\_id) | ID of the S3 interface VPC endpoint |
 | <a name="output_s3_vpce_bucket_host"></a> [s3\_vpce\_bucket\_host](#output\_s3\_vpce\_bucket\_host) | Bucket-style hostname for the S3 interface endpoint |
+| <a name="output_s3_vpce_regional_dns_names"></a> [s3\_vpce\_regional\_dns\_names](#output\_s3\_vpce\_regional\_dns\_names) | Regional DNS names discovered from the S3 interface endpoint DNS entries. |
+| <a name="output_s3_vpce_zonal_dns_names"></a> [s3\_vpce\_zonal\_dns\_names](#output\_s3\_vpce\_zonal\_dns\_names) | Zonal DNS names discovered from the S3 interface endpoint DNS entries. |
+| <a name="output_s3_vpce_validation_hosts"></a> [s3\_vpce\_validation\_hosts](#output\_s3\_vpce\_validation\_hosts) | Ordered DNS host candidates for downstream validation. Starts with the preferred regional bucket-style host, followed by zonal and all other endpoint-derived names. |
 | <a name="output_disallowed_bucket_name"></a> [disallowed\_bucket\_name](#output\_disallowed\_bucket\_name) | Name of the disallowed bucket (used for negative validation) |
 | <a name="output_aws_region"></a> [aws\_region](#output\_aws\_region) | AWS region |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID |

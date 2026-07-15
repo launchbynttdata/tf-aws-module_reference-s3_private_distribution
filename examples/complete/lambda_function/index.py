@@ -9,6 +9,10 @@ Environment variables (injected by Terraform):
   VPCE_BUCKET_HOST   - e.g. bucket.vpce-xxx.s3.us-east-2.vpce.amazonaws.com
   ARTIFACT_BUCKET    - name of the allowed artifact bucket
   DISALLOWED_BUCKET  - name of the bucket that should be blocked by endpoint policy
+
+Return codes from _get_status:
+  HTTP status code  - for both successful responses and HTTP-level errors (e.g. 403)
+  -1                - for any network-level or unexpected error (URLError, timeout, etc.)
 """
 
 import json
@@ -76,5 +80,5 @@ def _get_status(url: str) -> int:
             return resp.status
     except urllib.error.HTTPError as exc:
         return exc.code
-    except Exception:
+    except Exception:  # noqa: BLE001 - broad catch intentional: network probes must never raise
         return -1

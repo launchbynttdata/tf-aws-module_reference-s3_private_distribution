@@ -21,12 +21,16 @@ import (
 )
 
 type validationContext struct {
-	region               string
-	functionName         string
-	bucketName           string
-	disallowedBucketName string
-	lambdaClient         *lambda.Client
-	awsCfg               aws.Config
+	region                        string
+	functionName                  string
+	bucketName                    string
+	disallowedBucketName          string
+	loggingBucketName             string
+	shouldVerifyLoggingBucketGone bool
+	replicationBucketName         string
+	shouldVerifyReplicationGone   bool
+	lambdaClient                  *lambda.Client
+	awsCfg                        aws.Config
 }
 
 type validationResult struct {
@@ -86,11 +90,53 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 	replicationBucketSSEAlgorithm := terraform.OutputContext(t, context.Background(), tfOptions, "replication_bucket_sse_algorithm")
 	replicationBucketKMSKeyArn := terraform.OutputContext(t, context.Background(), tfOptions, "replication_bucket_kms_key_arn")
 
+	regionalDNSNames := terraform.OutputListContext(t, context.Background(), tfOptions, "s3_vpce_regional_dns_names")
+	zonalDNSNames := terraform.OutputListContext(t, context.Background(), tfOptions, "s3_vpce_zonal_dns_names")
+	bucketHost := terraform.OutputContext(t, context.Background(), tfOptions, "s3_vpce_bucket_host")
+
 	assert.Equal(t, expectedPrimaryRegion, region, "aws_region should match the test profile region")
 	assert.Regexp(t, `^vpce-[0-9a-f]{17}$`, endpointID, "s3_interface_vpce_id should be a valid VPC endpoint ID format")
 	assert.True(t, strings.HasPrefix(bucketName, "msix-s3-bucket-complete-") && strings.HasSuffix(bucketName, "-artifacts"), "s3_bucket_name should use the complete example naming pattern")
 	assert.True(t, strings.HasPrefix(disallowedBucketName, "msix-s3-bucket-complete-disallowed-"), "disallowed_bucket_name should use the complete example naming pattern")
 	assert.Regexp(t, `^msix-s3-bucket-complete-s3-probe-[0-9a-f]{4}$`, functionName, "lambda_function_name should use the complete example naming pattern")
+
+	// Verify VPCE DNS classification outputs are populated and correct.
+	// These are read-only assertions that catch classification bugs without a
+	// full apply+destroy cycle, making them valid for post-deploy readonly runs.
+	assert.NotEmpty(t, regionalDNSNames, "s3_vpce_regional_dns_names should contain at least one entry")
+	assert.NotEmpty(t, zonalDNSNames, "s3_vpce_zonal_dns_names should contain at least one entry")
+
+	// Regional and zonal lists must be mutually exclusive.
+	for _, n := range regionalDNSNames {
+		assert.NotContains(t, zonalDNSNames, n, "DNS name %q appears in both regional and zonal lists", n)
+	}
+
+	// Validate zonal/regional DNS structurally so this also works for Local Zones,
+	// GovCloud, and other AZ suffix forms beyond simple region-letter patterns.
+	regionalFirstLabels := make([]string, 0, len(regionalDNSNames))
+	for _, n := range regionalDNSNames {
+		firstLabel := strings.Split(strings.TrimPrefix(n, "*."), ".")[0]
+		regionalFirstLabels = append(regionalFirstLabels, firstLabel)
+		assert.True(t, strings.HasPrefix(firstLabel, "vpce-"),
+			"regional DNS name %q should start with vpce- in first label", n)
+	}
+
+	for _, n := range zonalDNSNames {
+		firstLabel := strings.Split(strings.TrimPrefix(n, "*."), ".")[0]
+		matchesRegionalPrefix := false
+		for _, regionalLabel := range regionalFirstLabels {
+			if strings.HasPrefix(firstLabel, regionalLabel+"-") {
+				matchesRegionalPrefix = true
+				break
+			}
+		}
+		assert.True(t, matchesRegionalPrefix,
+			"zonal DNS name %q first label %q should extend one regional first label with a hyphenated suffix", n, firstLabel)
+	}
+
+	// s3_vpce_bucket_host must be derived from the regional wildcard (no AZ suffix).
+	assert.Regexp(t, `^bucket\.vpce-[a-z0-9]+-[a-z0-9]+\.s3\.[a-z0-9-]+\.vpce\.amazonaws\.com$`, bucketHost,
+		"s3_vpce_bucket_host should be a regional (no AZ suffix) bucket-style hostname")
 
 	awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
 	require.NoError(t, err, "failed to load AWS SDK config")
@@ -126,13 +172,20 @@ func verifyInfrastructureReadOnly(t *testing.T, ctx types.TestContext) validatio
 		verifyBucketEncryptionConfiguration(t, awsCfg, replicationBucketName, replicationBucketSSEAlgorithm, replicationBucketKMSKeyArn)
 	}
 
+	shouldVerifyLoggingBucketGone := loggingBucketName != "" && loggingBucketSSEAlgorithm != ""
+	shouldVerifyReplicationGone := replicationBucketName != "" && replicationBucketArn != ""
+
 	return validationContext{
-		region:               region,
-		functionName:         functionName,
-		bucketName:           bucketName,
-		disallowedBucketName: disallowedBucketName,
-		lambdaClient:         lambdaClient,
-		awsCfg:               awsCfg,
+		region:                        region,
+		functionName:                  functionName,
+		bucketName:                    bucketName,
+		disallowedBucketName:          disallowedBucketName,
+		loggingBucketName:             loggingBucketName,
+		shouldVerifyLoggingBucketGone: shouldVerifyLoggingBucketGone,
+		replicationBucketName:         replicationBucketName,
+		shouldVerifyReplicationGone:   shouldVerifyReplicationGone,
+		lambdaClient:                  lambdaClient,
+		awsCfg:                        awsCfg,
 	}
 }
 
@@ -281,6 +334,26 @@ func verifyResourcesDestroyed(t *testing.T, v validationContext) {
 	require.Errorf(t, err, "disallowed bucket %s should not exist after destroy", v.disallowedBucketName)
 	assert.Truef(t, errors.As(err, &notFound2),
 		"disallowed bucket %s: expected NotFound, got %v", v.disallowedBucketName, err)
+
+	if v.shouldVerifyLoggingBucketGone {
+		_, err = s3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{
+			Bucket: aws.String(v.loggingBucketName),
+		})
+		var loggingNotFound *s3types.NotFound
+		require.Errorf(t, err, "logging bucket %s should not exist after destroy", v.loggingBucketName)
+		assert.Truef(t, errors.As(err, &loggingNotFound),
+			"logging bucket %s: expected NotFound, got %v", v.loggingBucketName, err)
+	}
+
+	if v.shouldVerifyReplicationGone {
+		_, err = s3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{
+			Bucket: aws.String(v.replicationBucketName),
+		})
+		var replicationNotFound *s3types.NotFound
+		require.Errorf(t, err, "replication bucket %s should not exist after destroy", v.replicationBucketName)
+		assert.Truef(t, errors.As(err, &replicationNotFound),
+			"replication bucket %s: expected NotFound, got %v", v.replicationBucketName, err)
+	}
 
 	// Lambda function must be gone.
 	_, err = v.lambdaClient.GetFunction(context.Background(), &lambda.GetFunctionInput{

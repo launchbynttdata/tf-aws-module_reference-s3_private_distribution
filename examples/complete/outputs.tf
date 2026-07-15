@@ -33,6 +33,21 @@ output "s3_vpce_bucket_host" {
   value       = module.s3_privatelink.s3_vpce_bucket_host
 }
 
+output "s3_vpce_regional_dns_names" {
+  description = "Regional DNS names discovered from the S3 interface endpoint DNS entries."
+  value       = module.s3_privatelink.s3_vpce_regional_dns_names
+}
+
+output "s3_vpce_zonal_dns_names" {
+  description = "Zonal DNS names discovered from the S3 interface endpoint DNS entries."
+  value       = module.s3_privatelink.s3_vpce_zonal_dns_names
+}
+
+output "s3_vpce_validation_hosts" {
+  description = "Ordered DNS host candidates for downstream validation. Starts with the preferred regional bucket-style host, followed by zonal and all other endpoint-derived names."
+  value       = module.s3_privatelink.s3_vpce_validation_hosts
+}
+
 output "disallowed_bucket_name" {
   description = "Name of the disallowed bucket (used for negative validation)"
   value       = aws_s3_bucket.disallowed_target.id
@@ -85,5 +100,5 @@ output "replication_bucket_kms_key_arn" {
 
 output "external_logging_target_bucket_name" {
   description = "Name of the self-managed external logging target bucket created by this example. Referenced when use_external_logging_target = true."
-  value       = aws_s3_bucket.external_logging_target.id
+  value       = var.use_external_logging_target ? aws_s3_bucket.external_logging_target[0].id : ""
 }

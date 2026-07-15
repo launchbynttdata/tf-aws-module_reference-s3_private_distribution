@@ -174,11 +174,12 @@ module "s3_privatelink" {
   vpce_subnet_ids         = [for s in module.private_subnets : s.subnet_id]
   vpce_security_group_ids = [module.s3_vpce_sg.id]
 
-  aws_region           = var.aws_region
-  name_prefix          = var.name_prefix
-  vpce_auto_accept     = var.vpce_auto_accept
-  vpce_ip_address_type = var.vpce_ip_address_type
-  vpce_dns_options     = var.vpce_dns_options
+  aws_region               = var.aws_region
+  name_prefix              = var.name_prefix
+  vpce_auto_accept         = var.vpce_auto_accept
+  vpce_private_dns_enabled = var.vpce_private_dns_enabled
+  vpce_ip_address_type     = var.vpce_ip_address_type
+  vpce_dns_options         = var.vpce_dns_options
 
   management_principal_arns           = local.effective_management_principal_arns
   pipeline_role_arns                  = var.pipeline_role_arns
@@ -219,10 +220,10 @@ resource "aws_s3_object" "sample_appinstaller" {
 # var.logging_target_bucket is null and enable_logging is true and we want
 # an external bucket instead of the auto-created one)
 #
-# Created unconditionally in this example so the test.external-logging-target
-# profile can reference it without requiring a pre-existing bucket. When the
-# baseline or other profiles run, they either set logging_target_bucket=null
-# (auto-created logging bucket) or provide this bucket's name explicitly.
+# Created only when use_external_logging_target=true so the baseline make test
+# path does not try to recreate a deterministic bucket name on every run. When
+# enabled, the test.external-logging-target profile can reference it without
+# requiring a pre-existing bucket.
 #
 # Policy follows the same pattern as the auto-created logging bucket in the
 # root module: only the S3 logging service may write, scoped by source bucket
@@ -230,13 +231,17 @@ resource "aws_s3_object" "sample_appinstaller" {
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "external_logging_target" {
+  count = var.use_external_logging_target ? 1 : 0
+
   bucket        = local.external_logging_bucket_name
   force_destroy = true
   tags          = merge(var.tags, { Name = "${var.name_prefix}-ext-log", Purpose = "S3AccessLogging" })
 }
 
 resource "aws_s3_bucket_public_access_block" "external_logging_target" {
-  bucket                  = aws_s3_bucket.external_logging_target.id
+  count = var.use_external_logging_target ? 1 : 0
+
+  bucket                  = aws_s3_bucket.external_logging_target[0].id
   block_public_acls       = true
   ignore_public_acls      = true
   block_public_policy     = true
@@ -244,7 +249,9 @@ resource "aws_s3_bucket_public_access_block" "external_logging_target" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "external_logging_target" {
-  bucket = aws_s3_bucket.external_logging_target.id
+  count = var.use_external_logging_target ? 1 : 0
+
+  bucket = aws_s3_bucket.external_logging_target[0].id
   rule {
     object_ownership = "BucketOwnerEnforced"
   }
@@ -252,7 +259,9 @@ resource "aws_s3_bucket_ownership_controls" "external_logging_target" {
 }
 
 resource "aws_s3_bucket_policy" "external_logging_target" {
-  bucket = aws_s3_bucket.external_logging_target.id
+  count = var.use_external_logging_target ? 1 : 0
+
+  bucket = aws_s3_bucket.external_logging_target[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -262,8 +271,8 @@ resource "aws_s3_bucket_policy" "external_logging_target" {
         Principal = "*"
         Action    = "s3:*"
         Resource = [
-          aws_s3_bucket.external_logging_target.arn,
-          "${aws_s3_bucket.external_logging_target.arn}/*"
+          aws_s3_bucket.external_logging_target[0].arn,
+          "${aws_s3_bucket.external_logging_target[0].arn}/*"
         ]
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
       },
@@ -274,7 +283,7 @@ resource "aws_s3_bucket_policy" "external_logging_target" {
           Service = "logging.s3.amazonaws.com"
         }
         Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.external_logging_target.arn}/*"
+        Resource = "${aws_s3_bucket.external_logging_target[0].arn}/*"
         Condition = {
           ArnLike      = { "aws:SourceArn" = module.s3_privatelink.s3_bucket_arn }
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }

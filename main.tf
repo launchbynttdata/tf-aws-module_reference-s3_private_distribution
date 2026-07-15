@@ -112,7 +112,7 @@ module "s3_interface_vpce" {
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type   = "Interface"
-  private_dns_enabled = false
+  private_dns_enabled = var.vpce_private_dns_enabled
   auto_accept         = var.vpce_auto_accept
   ip_address_type     = var.vpce_ip_address_type
   dns_options         = var.vpce_dns_options
@@ -121,6 +121,23 @@ module "s3_interface_vpce" {
   policy              = local.vpce_endpoint_policy_json
 
   tags = merge(local.tags, { Name = "${local.base_name}-s3-if-vpce" })
+}
+
+# Read live DNS entries from the S3 interface endpoint.
+# This data source queries the AWS API to fetch current VPCE DNS entries, which should
+# be available immediately once the endpoint reaches 'available' state.
+data "aws_vpc_endpoint" "s3_vpce_refreshed" {
+  depends_on = [module.s3_interface_vpce]
+
+  id = module.s3_interface_vpce.id
+}
+
+locals {
+  # Use refreshed DNS entries from data source at apply time instead of the
+  # module output (which is evaluated during plan phase). This ensures real
+  # VPCE wildcard DNS names are available for selection immediately after
+  # the endpoint reaches 'available' state.
+  vpce_dns_entries_for_selection = data.aws_vpc_endpoint.s3_vpce_refreshed.dns_entry
 }
 
 # ---------------------------------------------------------------------------
@@ -350,19 +367,91 @@ locals {
     ]
   )))
 
-  s3_vpce_wildcard_dns_candidates = [
-    for entry in module.s3_interface_vpce.dns_entry : entry.dns_name if startswith(entry.dns_name, "*.")
+  s3_vpce_dns_names = sort([
+    for entry in local.vpce_dns_entries_for_selection : entry.dns_name
+  ])
+
+  s3_vpce_dns_first_labels = {
+    for dns_name in local.s3_vpce_dns_names :
+    dns_name => split(".", replace(dns_name, "*.", ""))[0]
+  }
+
+  # Map of DNS name -> first label, restricted to VPCE-prefixed entries.
+  # The regional name's first label is vpce-{id}-{uniquifier}.
+  # The zonal name's first label extends it: vpce-{id}-{uniquifier}-{az}.
+  s3_vpce_vpce_first_labels = {
+    for n in local.s3_vpce_dns_names : n => local.s3_vpce_dns_first_labels[n]
+    if startswith(local.s3_vpce_dns_first_labels[n], "vpce-")
+  }
+
+  # The shortest first label is the regional one (no AZ suffix appended).
+  # sort()[0] gives deterministic selection independent of API response order.
+  # This approach works for standard regions, GovCloud, and Local Zones alike.
+  s3_vpce_regional_first_label = (
+    length(local.s3_vpce_vpce_first_labels) > 0 ?
+    sort([for _, l in local.s3_vpce_vpce_first_labels : l])[0] : null
+  )
+
+  # Regional: first label exactly matches the shortest VPCE label (no AZ suffix).
+  s3_vpce_regional_dns_names = [
+    for n, l in local.s3_vpce_vpce_first_labels : n if l == local.s3_vpce_regional_first_label
   ]
 
-  s3_vpce_bucket_host = (
-    length([
-      for name in local.s3_vpce_wildcard_dns_candidates : name if !strcontains(name, "-${var.aws_region}")
-      ]) > 0 ? replace([
-      for name in local.s3_vpce_wildcard_dns_candidates : name if !strcontains(name, "-${var.aws_region}")
-      ][0], "*.", "bucket.") : (
-      length(local.s3_vpce_wildcard_dns_candidates) > 0 ? replace(local.s3_vpce_wildcard_dns_candidates[0], "*.", "bucket.") : "bucket.${module.s3_interface_vpce.id}.s3.${var.aws_region}.vpce.amazonaws.com"
-    )
+  # Zonal: first label is the regional label with an AZ suffix appended ("-{az}").
+  # Covers standard AZs (us-east-1a), GovCloud (us-gov-west-1a), Local Zones (us-east-1-bos-1a).
+  s3_vpce_zonal_dns_names = [
+    for n, l in local.s3_vpce_vpce_first_labels : n
+    if l != local.s3_vpce_regional_first_label && startswith(l, "${local.s3_vpce_regional_first_label}-")
+  ]
+
+  s3_vpce_wildcard_dns_candidates = [
+    for dns_name in local.s3_vpce_dns_names : dns_name if startswith(dns_name, "*.")
+  ]
+
+  s3_vpce_any_wildcard_candidates = [
+    for dns_name in local.s3_vpce_wildcard_dns_candidates :
+    dns_name if startswith(local.s3_vpce_dns_first_labels[dns_name], "vpce-")
+  ]
+
+  # Sort candidates to ensure deterministic selection (not just by length, but
+  # also by name within the same length). The regional wildcard (no AZ suffix)
+  # is structurally the shortest, so it will always be selected first.
+  s3_vpce_sorted_wildcard_candidates = (
+    length(local.s3_vpce_any_wildcard_candidates) > 0 ?
+    sort(local.s3_vpce_any_wildcard_candidates) : []
   )
+
+  s3_vpce_shortest_wildcard_len = (
+    length(local.s3_vpce_sorted_wildcard_candidates) > 0 ?
+    min([for n in local.s3_vpce_sorted_wildcard_candidates : length(n)]...) : 0
+  )
+
+  # Select the regional wildcard (shortest candidate, no AZ suffix) and convert
+  # to bucket-style hostname. Returns null if no real VPCE wildcard names are
+  # available — this indicates a DNS propagation failure or endpoint misconfiguration
+  # and should be treated as a deployment error by downstream consumers.
+  s3_vpce_bucket_host = (
+    length(local.s3_vpce_sorted_wildcard_candidates) > 0 ?
+    replace(
+      [for n in local.s3_vpce_sorted_wildcard_candidates :
+      n if length(n) == local.s3_vpce_shortest_wildcard_len][0],
+      "*.", "bucket."
+    ) :
+    null
+  )
+
+  s3_vpce_validation_hosts = distinct(compact(concat(
+    [local.s3_vpce_bucket_host],
+    [
+      for dns_name in local.s3_vpce_regional_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
+    ],
+    [
+      for dns_name in local.s3_vpce_zonal_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
+    ],
+    [
+      for dns_name in local.s3_vpce_dns_names : startswith(dns_name, "*.") ? replace(dns_name, "*.", "bucket.") : dns_name
+    ]
+  )))
 
   vpce_allowed_bucket_arns = distinct(concat(
     [module.artifacts_bucket.arn],

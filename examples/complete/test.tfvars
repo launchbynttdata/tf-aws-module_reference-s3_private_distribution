@@ -9,10 +9,22 @@ name_prefix                    = "msix-s3-bucket-complete"
 # (no accidental replication bucket creation, etc.). These overrides restore
 # the full-feature secure posture that the README describes as the baseline.
 # ---------------------------------------------------------------------------
-enable_versioning  = true
-enable_lifecycle   = true
-enable_logging     = true
-enable_replication = true
+enable_versioning = true
+enable_lifecycle  = true
+enable_logging    = true
+# Baseline uses the module-managed logging bucket so make test covers
+# logging bucket create/destroy in the default functional workflow.
+use_external_logging_target = false
+enable_replication          = true
+
+# Keep make test baseline compatible with an interface-only endpoint stack.
+# AWS requires an S3 Gateway endpoint when
+# private_dns_only_for_inbound_resolver_endpoint = true
+# The complete example does not create that gateway endpoint
+vpce_private_dns_enabled = true
+vpce_dns_options = {
+  private_dns_only_for_inbound_resolver_endpoint = false
+}
 
 # ---------------------------------------------------------------------------
 # Access Control
